@@ -1,24 +1,51 @@
 # token-reduce
 
-`token-reduce` is a Python CLI that builds and incrementally maintains a codebase knowledge graph so AI coding assistants can use only impacted context instead of re-reading whole repositories.
+`token-reduce` ek Python CLI hai jo project ka incremental knowledge graph banata hai, blast radius nikalta hai, aur AI coding assistants (Claude/Cursor) ko sirf impacted context dene me help karta hai.
 
-## What it does
+## Key features
 
-- Scans your repository once and builds a graph of files, symbols, imports, inheritance, and call references.
-- Computes blast radius for changed files through graph traversal.
-- Produces compact context packs (JSON) for assistant prompts.
-- Updates incrementally:
-  - on file save via built-in watcher
-  - on commits/merges via installed git hooks
-- Supports multiple languages via mixed parsing strategies:
-  - AST-backed: Python
-  - Notebook-aware: Jupyter `.ipynb` (code cells)
-  - Heuristic parsing: JS/TS/Java/Go/Rust/C/C++/C#/Ruby/PHP/Swift/Kotlin/Scala/Lua
+- One-time graph build: files, symbols, imports, calls, inheritance links
+- Blast radius analysis: changed file se related affected nodes/files
+- Minimal context pack JSON generation for assistant prompts
+- Incremental updates:
+  - save-time watcher (`watch`)
+  - git hook sync (`post-commit`, `post-merge`)
+- Multi-language support:
+  - Python AST parser
+  - Jupyter `.ipynb` code-cell parsing
+  - Heuristic parsing for JS/TS/Java/Go/Rust/C/C++/C#/Ruby/PHP/Swift/Kotlin/Scala/Lua
 
-## Install
+## Installation (recommended)
+
+> Mac/Homebrew Python me `pip install -e .` direct run karne par PEP 668 error aa sakta hai. Isliye virtualenv recommended hai.
+
+1. Clone repo
 
 ```bash
-pip install -e .
+git clone <your-repo-url>
+cd token-reduce
+```
+
+2. Create and activate virtual environment
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+3. Install package in editable mode
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -e .
+```
+
+4. Verify CLI
+
+```bash
+token-reduce --help
+# fallback
+python -m token_reduce --help
 ```
 
 ## Quick start
@@ -26,13 +53,47 @@ pip install -e .
 ```bash
 token-reduce init
 token-reduce build
-token-reduce install
+token-reduce status
+```
+
+### Incremental sync + context
+
+```bash
+# Sync only changed files from working tree
 token-reduce sync --worktree
-token-reduce blast --changed src/foo.py
+
+# Compute blast radius from changed file(s)
+token-reduce blast --changed src/foo.py --depth 3
+
+# Generate compact AI context payload
 token-reduce context --changed src/foo.py --out .token-reduce/context.json
 ```
 
-## CLI
+Then AI assistant ko poora repo dene ke badle `.token-reduce/context.json` + impacted files do.
+
+## Install integrations (Claude/Cursor + hooks + watcher)
+
+```bash
+token-reduce install --json
+```
+
+`install` command:
+
+- `.token-reduce/` state ensure karta hai
+- Cursor detect hone par `.cursor/rules/token-reduce-context.mdc` banata hai
+- Claude detect hone par `CLAUDE.md` me workflow section add karta hai
+- Git hooks install karne try karta hai:
+  - `.git/hooks/post-commit` -> `sync --git-head`
+  - `.git/hooks/post-merge` -> `sync --worktree`
+- Background watcher start karta hai (default)
+
+### If you do not want background watcher
+
+```bash
+token-reduce install --no-watch
+```
+
+## CLI reference
 
 - `token-reduce init`
 - `token-reduce build [--json]`
@@ -43,27 +104,60 @@ token-reduce context --changed src/foo.py --out .token-reduce/context.json
 - `token-reduce install [--no-watch] [--json]`
 - `token-reduce status [--json]`
 
-## Installer behavior
+## Recommended daily workflow
 
-`token-reduce install` automatically:
+1. Start of day / fresh branch:
 
-- Creates project state in `.token-reduce/`
-- Detects and configures known assistants when found:
-  - Cursor (`.cursor/rules/token-reduce-context.mdc`)
-  - Claude (`CLAUDE.md` workflow section)
-- Installs git hooks:
-  - `.git/hooks/post-commit` (sync changed HEAD files)
-  - `.git/hooks/post-merge` (sync worktree changes)
-- Starts watcher background process (unless `--no-watch`)
+```bash
+token-reduce build
+```
 
-## Output integration pattern for assistants
-
-Call:
+2. Before AI query on changed code:
 
 ```bash
 token-reduce sync --worktree
-token-reduce context --changed <changed files> --out .token-reduce/context.json
+token-reduce context --changed <changed-files> --out .token-reduce/context.json
 ```
 
-Then provide only `.token-reduce/context.json` and impacted files to your assistant.
-# Reduce-token
+3. After commit:
+
+- `post-commit` hook auto-sync karega (agar hooks installed hain)
+
+## Troubleshooting
+
+### 1) `externally-managed-environment` during pip install
+
+Use venv (recommended section above). Avoid global `pip install -e .` on Homebrew Python.
+
+### 2) `install` me hook permission error
+
+Agar output me `Permission denied writing git hook` aaye, to manually permissions check karo:
+
+```bash
+ls -ld .git .git/hooks
+chmod u+w .git/hooks
+```
+
+Phir rerun:
+
+```bash
+token-reduce install --no-watch --json
+```
+
+### 3) `token-reduce` command not found
+
+Venv activate karo ya module mode use karo:
+
+```bash
+python -m token_reduce <command>
+```
+
+### 4) Watcher already running
+
+`install --json` notes me `Watcher already running.` aayega; ye normal hai.
+
+## Development checks
+
+```bash
+python -m unittest discover -s tests -v
+```

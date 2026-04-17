@@ -7,6 +7,7 @@ from pathlib import Path
 
 from token_reduce.analyzer import Analyzer
 from token_reduce.config import load_config
+from token_reduce.installer import _hook_script, _install_git_hooks
 
 
 class TokenReduceTests(unittest.TestCase):
@@ -51,6 +52,22 @@ class TokenReduceTests(unittest.TestCase):
                 self.assertGreater(int(row["count"]), 0)
             finally:
                 analyzer.close()
+
+    def test_hook_script_has_python_fallback(self) -> None:
+        script = _hook_script("head")
+        self.assertIn("token-reduce sync", script)
+        self.assertIn("python3 -m token_reduce sync", script)
+        self.assertIn("--git-head", script)
+
+    def test_install_git_hooks_in_repo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".git").mkdir()
+            hooks, notes = _install_git_hooks(root)
+            self.assertEqual(notes, [])
+            self.assertIn("post-commit", hooks)
+            self.assertIn("post-merge", hooks)
+            self.assertTrue((root / ".git" / "hooks" / "post-commit").exists())
 
 
 if __name__ == "__main__":

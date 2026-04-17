@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# token-reduce runtime state
+.token-reduce/
+
+# Accidental nested repo copy
+Reduce-token/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
