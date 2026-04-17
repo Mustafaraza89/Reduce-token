@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from token_reduce.analyzer import Analyzer
+from token_reduce.cli import _launch_assistant
 from token_reduce.config import load_config
 from token_reduce.easy_mode import run_use_flow
 from token_reduce.installer import _hook_script, _install_git_hooks
@@ -95,6 +96,11 @@ class TokenReduceTests(unittest.TestCase):
                 self.assertIn("Changed Files", prompt)
             finally:
                 analyzer.close()
+
+    def test_launch_assistant_not_found(self) -> None:
+        status, error = _launch_assistant("gemini", "hello", "definitely-not-a-real-cli-binary")
+        self.assertEqual(status, "not_found")
+        self.assertIsNotNone(error)
 
 
 if __name__ == "__main__":

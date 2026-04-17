@@ -5,10 +5,17 @@ from pathlib import Path
 
 from .analyzer import Analyzer
 from .config import AppConfig
-from .context_pack import ContextPack, build_context_pack
+from .context_pack import build_context_pack
 
 
 ASSISTANT_CHOICES = ("generic", "codex", "claude", "gemini", "chatgpt", "antigravity")
+DEFAULT_LAUNCH_COMMANDS: dict[str, str] = {
+    "codex": "codex",
+    "claude": "claude",
+    "gemini": "gemini",
+    "chatgpt": "chatgpt",
+    "antigravity": "antigravity",
+}
 
 
 @dataclass(slots=True)
@@ -63,6 +70,14 @@ def run_use_flow(
         context_json_path=str(context_json_path),
         prompt_md_path=str(prompt_md_path),
     )
+
+
+def read_prompt(use_result: UseResult) -> str:
+    return Path(use_result.prompt_md_path).read_text(encoding="utf-8")
+
+
+def default_launch_command(assistant: str) -> str | None:
+    return DEFAULT_LAUNCH_COMMANDS.get(assistant)
 
 
 def _tracked_count(analyzer: Analyzer) -> int:

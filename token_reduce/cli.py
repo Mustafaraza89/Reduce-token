@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
 from .analyzer import Analyzer
 from .config import AppConfig, load_config, save_config
 from .context_pack import build_context_pack
-from .easy_mode import ASSISTANT_CHOICES, run_use_flow
+from .easy_mode import ASSISTANT_CHOICES, default_launch_command, read_prompt, run_use_flow
 from .installer import install_integrations
 from .watcher import Watcher
 
@@ -51,6 +54,9 @@ def build_parser() -> argparse.ArgumentParser:
     use.add_argument("--depth", type=int, default=None, help="Traversal depth")
     use.add_argument("--max-files", type=int, default=None, help="Limit impacted files")
     use.add_argument("--out-dir", type=Path, default=None, help="Output directory for context and prompt files")
+    use.add_argument("--print", dest="print_prompt", action="store_true", help="Print generated prompt markdown to stdout")
+    use.add_argument("--launch", action="store_true", help="Launch assistant CLI and send generated prompt over stdin")
+    use.add_argument("--cmd", type=str, default=None, help="Override launch command, e.g. 'gemini'")
     use.add_argument("--json", action="store_true", help="Output machine-readable JSON")
 
     watch = sub.add_parser("watch", help="Watch filesystem and sync graph incrementally")
@@ -231,6 +237,20 @@ def main(argv: list[str] | None = None) -> int:
                 "context_json": result.context_json_path,
                 "prompt_md": result.prompt_md_path,
             }
+            prompt_text = read_prompt(result)
+
+            launch_status = None
+            launch_error = None
+            if args.launch:
+                launch_status, launch_error = _launch_assistant(
+                    assistant=args.assistant,
+                    prompt_text=prompt_text,
+                    override_command=args.cmd,
+                )
+                payload["launch_status"] = launch_status
+                if launch_error:
+                    payload["launch_error"] = launch_error
+
             if args.json:
                 print(json.dumps(payload, indent=2))
             else:
@@ -241,7 +261,15 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 print(f"context_json={result.context_json_path}")
                 print(f"prompt_md={result.prompt_md_path}")
-                print("next: copy prompt_md content and paste it into your AI assistant.")
+                if args.print_prompt:
+                    print("")
+                    print(prompt_text)
+                if args.launch:
+                    print(f"launch_status={launch_status}")
+                    if launch_error:
+                        print(f"launch_error={launch_error}")
+                if not args.print_prompt and not args.launch:
+                    print("next: copy prompt_md content and paste it into your AI assistant.")
             return 0
 
         if args.command == "status":
@@ -275,6 +303,28 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     finally:
         analyzer.close()
+
+
+def _launch_assistant(assistant: str, prompt_text: str, override_command: str | None) -> tuple[str, str | None]:
+    command_text = override_command or default_launch_command(assistant)
+    if not command_text:
+        return "not_configured", "No default launch command for this assistant. Use --cmd."
+
+    argv = shlex.split(command_text)
+    if not argv:
+        return "invalid_command", "Launch command is empty."
+
+    binary = argv[0]
+    if shutil.which(binary) is None:
+        return "not_found", f"Command not found in PATH: {binary}"
+
+    try:
+        proc = subprocess.run(argv, input=prompt_text, text=True, check=False)
+        if proc.returncode != 0:
+            return "failed", f"Assistant CLI exited with code {proc.returncode}"
+        return "ok", None
+    except OSError as err:
+        return "failed", str(err)
 
 
 if __name__ == "__main__":

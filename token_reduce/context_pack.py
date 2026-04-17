@@ -44,6 +44,7 @@ class ContextPack:
             lines.append("- (none)")
         lines.append("")
         lines.append("## Impacted Context")
+        lines.append("Below blocks are auto-extracted code snippets for AI context (reference only).")
         if not self.impacted:
             lines.append("- (none)")
         for context_file in self.impacted:

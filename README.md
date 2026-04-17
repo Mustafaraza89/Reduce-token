@@ -1,8 +1,8 @@
 # token-reduce
 
-`token-reduce` AI coding assistants ke liye context optimizer hai. Ye full repo dubara-dubara read karne ke bajay sirf impacted files/snippets deta hai.
+`token-reduce` AI coding assistants ke liye context optimizer hai. Ye full repo dubara read karne ke bajay sirf impacted context deta hai.
 
-## Super quick start (recommended)
+## 1-minute setup
 
 ```bash
 python3 -m venv .venv
@@ -10,68 +10,75 @@ source .venv/bin/activate
 python -m pip install -U pip
 python -m pip install -e .
 
-# One-time setup
-token-reduce setup
-
-# Daily single command (auto-detect changed files)
-token-reduce use --assistant claude
+token-reduce setup --no-watch
 ```
 
-Bas. `use` command automatically:
+## Daily use (simplest)
 
-- changed files detect karta hai
-- graph sync karta hai
-- blast radius nikalta hai
-- 2 files generate karta hai:
-  - `.token-reduce/assistant/context-<assistant>.json`
-  - `.token-reduce/assistant/prompt-<assistant>.md`
-
-`prompt-<assistant>.md` ka content copy karke apne AI tool me paste karo.
-
-## Works with
-
-- Codex
-- Claude Code
-- Gemini
-- ChatGPT
-- Antigravity
-- Any IDE + terminal workflow
-
-Use assistant-specific prompt style:
+### Gemini
 
 ```bash
-token-reduce use --assistant codex
-token-reduce use --assistant claude
-token-reduce use --assistant gemini
-token-reduce use --assistant chatgpt
-token-reduce use --assistant antigravity
+token-reduce use --assistant gemini --launch
 ```
 
-## IDE workflow (direct)
+Ye command:
 
-1. Terminal open karo (IDE ke andar ya external)
-2. Run:
+- changed files auto-detect karega
+- context generate karega
+- Gemini CLI ko prompt stdin se bhejne ki koshish karega
+- first run par Gemini auth/login prompt aa sakta hai (expected behavior)
+
+Agar Gemini binary PATH me nahi hai, to fallback:
 
 ```bash
-token-reduce use --assistant claude
+token-reduce use --assistant gemini --print
 ```
 
-3. Open file:
+Then printed prompt ko Gemini me paste karo.
 
-- `.token-reduce/assistant/prompt-claude.md`
+### Any assistant
 
-4. Iska content copy-paste into assistant chat.
+```bash
+token-reduce use --assistant codex --launch
+token-reduce use --assistant claude --launch
+token-reduce use --assistant gemini --launch
+token-reduce use --assistant chatgpt --launch
+token-reduce use --assistant antigravity --launch
+```
 
-Same steps Codex/Gemini/ChatGPT ke liye, sirf `--assistant` change karo.
+## If changed files auto-detect nahi ho
 
-## CLI commands
+```bash
+token-reduce use --assistant gemini --changed src/a.py src/b.ts --launch
+```
 
-### Easy mode (recommended)
+## Useful output files
 
-- `token-reduce setup` -> one-time init + build + install integrations
-- `token-reduce use --assistant <name>` -> daily one-command context generation
+`use` command yahan files banata hai:
 
-### Advanced mode (optional)
+- `.token-reduce/assistant/context-<assistant>.json`
+- `.token-reduce/assistant/prompt-<assistant>.md`
+
+## Custom CLI command (if needed)
+
+Agar aapke system me assistant ka command alag hai, `--cmd` use karo:
+
+```bash
+token-reduce use --assistant gemini --launch --cmd "gemini"
+```
+
+Example custom:
+
+```bash
+token-reduce use --assistant gemini --launch --cmd "my-gemini-cli"
+```
+
+## Easy mode commands
+
+- `token-reduce setup` -> one-time init + build + install
+- `token-reduce use --assistant <name>` -> daily context + prompt generation
+
+## Advanced commands
 
 - `token-reduce init`
 - `token-reduce build`
@@ -81,18 +88,6 @@ Same steps Codex/Gemini/ChatGPT ke liye, sirf `--assistant` change karo.
 - `token-reduce install`
 - `token-reduce watch`
 - `token-reduce status`
-
-## When no changed files are detected
-
-Agar git worktree clean ho, to explicit files pass karo:
-
-```bash
-token-reduce use --assistant claude --changed src/api/user.ts src/lib/auth.ts
-```
-
-## Installation notes
-
-Homebrew Python me direct global install par `externally-managed-environment` error aa sakta hai. Isliye always virtualenv use karo (quick start jaisa).
 
 ## Test
 
