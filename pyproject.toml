@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "token-reduce"
+version = "0.1.0"
+description = "Incremental codebase knowledge graph and blast-radius context tool for AI coding assistants"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Token Reduce" }]
+license = { text = "MIT" }
+keywords = ["ai", "context", "knowledge-graph", "developer-tools", "cli"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+
+[project.scripts]
+token-reduce = "token_reduce.cli:main"
+
+[tool.setuptools]
+packages = ["token_reduce"]
