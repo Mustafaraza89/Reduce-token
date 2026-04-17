@@ -29,6 +29,53 @@ class ContextPack:
             indent=2,
         )
 
+    def to_markdown(self, assistant: str = "generic") -> str:
+        header = _assistant_header(assistant)
+        lines: list[str] = []
+        lines.append(f"# Token Reduce Prompt ({assistant})")
+        lines.append("")
+        lines.append(header)
+        lines.append("")
+        lines.append("## Changed Files")
+        if self.changed:
+            for item in self.changed:
+                lines.append(f"- `{item}`")
+        else:
+            lines.append("- (none)")
+        lines.append("")
+        lines.append("## Impacted Context")
+        if not self.impacted:
+            lines.append("- (none)")
+        for context_file in self.impacted:
+            lines.append(f"### `{context_file.path}` (distance={context_file.distance})")
+            for snippet in context_file.snippets:
+                lines.append("```text")
+                lines.append(snippet)
+                lines.append("```")
+        lines.append("")
+        lines.append("## Task")
+        lines.append(
+            "Use only this impacted context first. If additional files are required, ask specifically for those files."
+        )
+        lines.append(
+            "Provide: root cause, exact code changes, tests (or why not), and any migration/rollout risk."
+        )
+        return "\n".join(lines)
+
+
+def _assistant_header(assistant: str) -> str:
+    if assistant == "codex":
+        return "Codex mode: prioritize minimal, behavior-safe patch with explicit verification commands."
+    if assistant == "claude":
+        return "Claude mode: reason briefly, then apply precise edits with no broad context scanning."
+    if assistant == "gemini":
+        return "Gemini mode: focus on deterministic code changes and impacted dependency paths only."
+    if assistant == "chatgpt":
+        return "ChatGPT mode: keep solution concise, code-first, and constrained to impacted files."
+    if assistant == "antigravity":
+        return "Antigravity mode: use targeted context and avoid exploratory full-repo reads."
+    return "Generic mode: use targeted impacted context and avoid full repository re-reads."
+
 
 def build_context_pack(
     config: AppConfig,

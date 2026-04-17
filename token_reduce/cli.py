@@ -8,6 +8,7 @@ from pathlib import Path
 from .analyzer import Analyzer
 from .config import AppConfig, load_config, save_config
 from .context_pack import build_context_pack
+from .easy_mode import ASSISTANT_CHOICES, run_use_flow
 from .installer import install_integrations
 from .watcher import Watcher
 
@@ -19,6 +20,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("init", help="Create config and graph state directory")
+
+    setup = sub.add_parser("setup", help="One-time setup: init + build + install")
+    setup.add_argument("--no-watch", action="store_true", help="Skip starting watcher")
+    setup.add_argument("--json", action="store_true", help="Output machine-readable JSON")
 
     build = sub.add_parser("build", help="Scan project and build/update graph")
     build.add_argument("--json", action="store_true", help="Output machine-readable JSON")
@@ -39,6 +44,14 @@ def build_parser() -> argparse.ArgumentParser:
     context.add_argument("--depth", type=int, default=None, help="Traversal depth")
     context.add_argument("--max-files", type=int, default=None, help="Limit impacted files")
     context.add_argument("--out", type=Path, default=None, help="Write context JSON to file")
+
+    use = sub.add_parser("use", help="Easy daily command: auto-sync + context + ready prompt")
+    use.add_argument("--assistant", choices=ASSISTANT_CHOICES, default="generic", help="Prompt style template")
+    use.add_argument("--changed", nargs="*", default=[], help="Optional changed files; if empty auto-detect from git")
+    use.add_argument("--depth", type=int, default=None, help="Traversal depth")
+    use.add_argument("--max-files", type=int, default=None, help="Limit impacted files")
+    use.add_argument("--out-dir", type=Path, default=None, help="Output directory for context and prompt files")
+    use.add_argument("--json", action="store_true", help="Output machine-readable JSON")
 
     watch = sub.add_parser("watch", help="Watch filesystem and sync graph incrementally")
     watch.add_argument("--interval", type=float, default=None, help="Polling interval seconds")
@@ -66,6 +79,44 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "init":
         print(f"initialized: {cfg.state_dir}")
+        return 0
+
+    if args.command == "setup":
+        analyzer = Analyzer(cfg)
+        try:
+            build_summary = analyzer.build_graph()
+        finally:
+            analyzer.close()
+
+        install_result = install_integrations(cfg, start_watcher=not args.no_watch)
+        payload = {
+            "build": build_summary,
+            "install": {
+                "configured_tools": install_result.configured_tools,
+                "hooks_installed": install_result.hooks_installed,
+                "watcher_started": install_result.watcher_started,
+                "notes": install_result.notes,
+            },
+        }
+        if args.json:
+            print(json.dumps(payload, indent=2))
+        else:
+            print(
+                " ".join(
+                    [
+                        "setup_complete",
+                        f"tracked={build_summary['tracked']}",
+                        f"processed={build_summary['processed']}",
+                        f"watcher_started={install_result.watcher_started}",
+                    ]
+                )
+            )
+            if install_result.configured_tools:
+                print(f"configured_tools={','.join(install_result.configured_tools)}")
+            if install_result.hooks_installed:
+                print(f"hooks_installed={','.join(install_result.hooks_installed)}")
+            for note in install_result.notes:
+                print(f"note: {note}")
         return 0
 
     if args.command == "install":
@@ -156,6 +207,41 @@ def main(argv: list[str] | None = None) -> int:
                 print(str(args.out))
             else:
                 print(payload)
+            return 0
+
+        if args.command == "use":
+            try:
+                result = run_use_flow(
+                    config=cfg,
+                    analyzer=analyzer,
+                    assistant=args.assistant,
+                    changed_inputs=args.changed,
+                    depth=args.depth,
+                    max_files=args.max_files,
+                    out_dir=args.out_dir,
+                )
+            except ValueError as err:
+                print(f"error: {err}", file=sys.stderr)
+                return 2
+            payload = {
+                "assistant": result.assistant,
+                "graph_built": result.graph_built,
+                "changed": result.changed,
+                "sync": result.sync_summary,
+                "context_json": result.context_json_path,
+                "prompt_md": result.prompt_md_path,
+            }
+            if args.json:
+                print(json.dumps(payload, indent=2))
+            else:
+                print(f"assistant={result.assistant}")
+                print(f"changed={','.join(result.changed) or 'none'}")
+                print(
+                    f"sync_parsed={result.sync_summary['parsed']} sync_skipped={result.sync_summary['skipped']} sync_removed={result.sync_summary['removed']}"
+                )
+                print(f"context_json={result.context_json_path}")
+                print(f"prompt_md={result.prompt_md_path}")
+                print("next: copy prompt_md content and paste it into your AI assistant.")
             return 0
 
         if args.command == "status":

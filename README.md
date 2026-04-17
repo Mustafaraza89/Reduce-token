@@ -1,162 +1,100 @@
 # token-reduce
 
-`token-reduce` ek Python CLI hai jo project ka incremental knowledge graph banata hai, blast radius nikalta hai, aur AI coding assistants (Claude/Cursor) ko sirf impacted context dene me help karta hai.
+`token-reduce` AI coding assistants ke liye context optimizer hai. Ye full repo dubara-dubara read karne ke bajay sirf impacted files/snippets deta hai.
 
-## Key features
-
-- One-time graph build: files, symbols, imports, calls, inheritance links
-- Blast radius analysis: changed file se related affected nodes/files
-- Minimal context pack JSON generation for assistant prompts
-- Incremental updates:
-  - save-time watcher (`watch`)
-  - git hook sync (`post-commit`, `post-merge`)
-- Multi-language support:
-  - Python AST parser
-  - Jupyter `.ipynb` code-cell parsing
-  - Heuristic parsing for JS/TS/Java/Go/Rust/C/C++/C#/Ruby/PHP/Swift/Kotlin/Scala/Lua
-
-## Installation (recommended)
-
-> Mac/Homebrew Python me `pip install -e .` direct run karne par PEP 668 error aa sakta hai. Isliye virtualenv recommended hai.
-
-1. Clone repo
-
-```bash
-git clone <your-repo-url>
-cd token-reduce
-```
-
-2. Create and activate virtual environment
+## Super quick start (recommended)
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-```
-
-3. Install package in editable mode
-
-```bash
-python -m pip install --upgrade pip
+python -m pip install -U pip
 python -m pip install -e .
+
+# One-time setup
+token-reduce setup
+
+# Daily single command (auto-detect changed files)
+token-reduce use --assistant claude
 ```
 
-4. Verify CLI
+Bas. `use` command automatically:
+
+- changed files detect karta hai
+- graph sync karta hai
+- blast radius nikalta hai
+- 2 files generate karta hai:
+  - `.token-reduce/assistant/context-<assistant>.json`
+  - `.token-reduce/assistant/prompt-<assistant>.md`
+
+`prompt-<assistant>.md` ka content copy karke apne AI tool me paste karo.
+
+## Works with
+
+- Codex
+- Claude Code
+- Gemini
+- ChatGPT
+- Antigravity
+- Any IDE + terminal workflow
+
+Use assistant-specific prompt style:
 
 ```bash
-token-reduce --help
-# fallback
-python -m token_reduce --help
+token-reduce use --assistant codex
+token-reduce use --assistant claude
+token-reduce use --assistant gemini
+token-reduce use --assistant chatgpt
+token-reduce use --assistant antigravity
 ```
 
-## Quick start
+## IDE workflow (direct)
+
+1. Terminal open karo (IDE ke andar ya external)
+2. Run:
 
 ```bash
-token-reduce init
-token-reduce build
-token-reduce status
+token-reduce use --assistant claude
 ```
 
-### Incremental sync + context
+3. Open file:
 
-```bash
-# Sync only changed files from working tree
-token-reduce sync --worktree
+- `.token-reduce/assistant/prompt-claude.md`
 
-# Compute blast radius from changed file(s)
-token-reduce blast --changed src/foo.py --depth 3
+4. Iska content copy-paste into assistant chat.
 
-# Generate compact AI context payload
-token-reduce context --changed src/foo.py --out .token-reduce/context.json
-```
+Same steps Codex/Gemini/ChatGPT ke liye, sirf `--assistant` change karo.
 
-Then AI assistant ko poora repo dene ke badle `.token-reduce/context.json` + impacted files do.
+## CLI commands
 
-## Install integrations (Claude/Cursor + hooks + watcher)
+### Easy mode (recommended)
 
-```bash
-token-reduce install --json
-```
+- `token-reduce setup` -> one-time init + build + install integrations
+- `token-reduce use --assistant <name>` -> daily one-command context generation
 
-`install` command:
-
-- `.token-reduce/` state ensure karta hai
-- Cursor detect hone par `.cursor/rules/token-reduce-context.mdc` banata hai
-- Claude detect hone par `CLAUDE.md` me workflow section add karta hai
-- Git hooks install karne try karta hai:
-  - `.git/hooks/post-commit` -> `sync --git-head`
-  - `.git/hooks/post-merge` -> `sync --worktree`
-- Background watcher start karta hai (default)
-
-### If you do not want background watcher
-
-```bash
-token-reduce install --no-watch
-```
-
-## CLI reference
+### Advanced mode (optional)
 
 - `token-reduce init`
-- `token-reduce build [--json]`
-- `token-reduce sync [--files ...] [--git-head] [--worktree] [--json]`
-- `token-reduce blast --changed <file...> [--depth N] [--json]`
-- `token-reduce context --changed <file...> [--depth N] [--max-files N] [--out FILE]`
-- `token-reduce watch [--interval 1.5]`
-- `token-reduce install [--no-watch] [--json]`
-- `token-reduce status [--json]`
+- `token-reduce build`
+- `token-reduce sync --worktree`
+- `token-reduce blast --changed <files>`
+- `token-reduce context --changed <files>`
+- `token-reduce install`
+- `token-reduce watch`
+- `token-reduce status`
 
-## Recommended daily workflow
+## When no changed files are detected
 
-1. Start of day / fresh branch:
-
-```bash
-token-reduce build
-```
-
-2. Before AI query on changed code:
+Agar git worktree clean ho, to explicit files pass karo:
 
 ```bash
-token-reduce sync --worktree
-token-reduce context --changed <changed-files> --out .token-reduce/context.json
+token-reduce use --assistant claude --changed src/api/user.ts src/lib/auth.ts
 ```
 
-3. After commit:
+## Installation notes
 
-- `post-commit` hook auto-sync karega (agar hooks installed hain)
+Homebrew Python me direct global install par `externally-managed-environment` error aa sakta hai. Isliye always virtualenv use karo (quick start jaisa).
 
-## Troubleshooting
-
-### 1) `externally-managed-environment` during pip install
-
-Use venv (recommended section above). Avoid global `pip install -e .` on Homebrew Python.
-
-### 2) `install` me hook permission error
-
-Agar output me `Permission denied writing git hook` aaye, to manually permissions check karo:
-
-```bash
-ls -ld .git .git/hooks
-chmod u+w .git/hooks
-```
-
-Phir rerun:
-
-```bash
-token-reduce install --no-watch --json
-```
-
-### 3) `token-reduce` command not found
-
-Venv activate karo ya module mode use karo:
-
-```bash
-python -m token_reduce <command>
-```
-
-### 4) Watcher already running
-
-`install --json` notes me `Watcher already running.` aayega; ye normal hai.
-
-## Development checks
+## Test
 
 ```bash
 python -m unittest discover -s tests -v

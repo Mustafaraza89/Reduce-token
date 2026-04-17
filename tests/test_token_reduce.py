@@ -7,6 +7,7 @@ from pathlib import Path
 
 from token_reduce.analyzer import Analyzer
 from token_reduce.config import load_config
+from token_reduce.easy_mode import run_use_flow
 from token_reduce.installer import _hook_script, _install_git_hooks
 
 
@@ -68,6 +69,32 @@ class TokenReduceTests(unittest.TestCase):
             self.assertIn("post-commit", hooks)
             self.assertIn("post-merge", hooks)
             self.assertTrue((root / ".git" / "hooks" / "post-commit").exists())
+
+    def test_use_flow_generates_prompt_and_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            src = root / "main.py"
+            src.write_text("def run_task():\n    return 1\n", encoding="utf-8")
+
+            cfg = load_config(root)
+            analyzer = Analyzer(cfg)
+            try:
+                result = run_use_flow(
+                    config=cfg,
+                    analyzer=analyzer,
+                    assistant="chatgpt",
+                    changed_inputs=["main.py"],
+                    depth=2,
+                    max_files=5,
+                    out_dir=None,
+                )
+                self.assertTrue(Path(result.context_json_path).exists())
+                self.assertTrue(Path(result.prompt_md_path).exists())
+                prompt = Path(result.prompt_md_path).read_text(encoding="utf-8")
+                self.assertIn("Token Reduce Prompt (chatgpt)", prompt)
+                self.assertIn("Changed Files", prompt)
+            finally:
+                analyzer.close()
 
 
 if __name__ == "__main__":
