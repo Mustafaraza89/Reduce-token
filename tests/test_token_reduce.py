@@ -438,6 +438,77 @@ class TokenReduceTests(unittest.TestCase):
                 ret = main(["--project-root", str(root), subcmd, "--json"])
                 self.assertEqual(ret, 0, f"Command {subcmd} failed")
 
+    def test_risk_scoring_calculation(self) -> None:
+        from token_reduce.risk import calculate_risk_score, is_sensitive_file, is_test_file
+        self.assertTrue(is_test_file("tests/test_auth.py"))
+        self.assertTrue(is_test_file("test_utils.py"))
+        self.assertFalse(is_test_file("token_reduce/auth.py"))
+
+        self.assertTrue(is_sensitive_file("token_reduce/auth.py"))
+        self.assertTrue(is_sensitive_file("db/migrations/001_init.sql"))
+        self.assertFalse(is_sensitive_file("views/home.py"))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "auth.py").write_text("def login(): pass\n", encoding="utf-8")
+            (root / "api.py").write_text("import auth\ndef endpoint(): auth.login()\n", encoding="utf-8")
+            cfg = load_config(root)
+            analyzer = Analyzer(cfg)
+            try:
+                analyzer.build_graph()
+                blast = analyzer.blast_radius([root / "auth.py"], max_depth=2)
+                report = calculate_risk_score(analyzer.store, ["auth.py"], blast)
+                self.assertGreater(report.score, 10)
+                self.assertIn("auth.py", report.test_gap_files)
+                self.assertIn("auth.py", report.sensitive_files)
+                self.assertIn("CRITICAL", ["LOW", "MEDIUM", "HIGH", "CRITICAL"])
+            finally:
+                analyzer.close()
+
+    def test_mcp_server_protocol(self) -> None:
+        from token_reduce.mcp import handle_mcp_request
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "main.py").write_text("def run(): pass\n", encoding="utf-8")
+            cfg = load_config(root)
+            analyzer = Analyzer(cfg)
+            try:
+                analyzer.build_graph()
+            finally:
+                analyzer.close()
+
+            # 1. Initialize
+            init_resp = handle_mcp_request({"jsonrpc": "2.0", "id": 1, "method": "initialize"}, root)
+            self.assertIsNotNone(init_resp)
+            self.assertEqual(init_resp["result"]["serverInfo"]["name"], "reducetoken")
+
+            # 2. Tools list
+            tools_resp = handle_mcp_request({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, root)
+            self.assertIsNotNone(tools_resp)
+            tool_names = [t["name"] for t in tools_resp["result"]["tools"]]
+            self.assertIn("reducetoken_get_context", tool_names)
+            self.assertIn("reducetoken_blast_radius", tool_names)
+            self.assertIn("reducetoken_risk_score", tool_names)
+            self.assertIn("reducetoken_specialist", tool_names)
+
+            # 3. Tool call: reducetoken_risk_score
+            call_resp = handle_mcp_request({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "reducetoken_risk_score", "arguments": {"changed_files": ["main.py"]}},
+            }, root)
+            self.assertIsNotNone(call_resp)
+            self.assertIn("score", call_resp["result"]["content"][0]["text"])
+
+    def test_risk_cli_command(self) -> None:
+        from token_reduce.cli import main
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "service.py").write_text("def work(): pass\n", encoding="utf-8")
+            ret = main(["--project-root", str(root), "risk", "--changed", "service.py", "--json"])
+            self.assertEqual(ret, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

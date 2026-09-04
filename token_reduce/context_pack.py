@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from .caveman import estimate_output_savings_pct, format_caveman_directive
 from .config import AppConfig
 from .graph_store import GraphStore
+from .risk import calculate_risk_score
 
 
 def estimate_tokens(text: str) -> int:
@@ -31,6 +32,9 @@ class ContextPack:
     baseline_tokens: int = 0
     token_reduction_pct: float = 0.0
     caveman: str = "full"
+    risk_level: str = "LOW"
+    risk_score: int = 10
+    risk_factors: list[str] = field(default_factory=list)
 
     @property
     def caveman_savings_pct(self) -> float:
@@ -46,6 +50,9 @@ class ContextPack:
                 "token_reduction_pct": self.token_reduction_pct,
                 "caveman": self.caveman,
                 "estimated_output_savings_pct": estimate_output_savings_pct(self.caveman),
+                "risk_level": self.risk_level,
+                "risk_score": self.risk_score,
+                "risk_factors": self.risk_factors,
             },
             indent=2,
         )
@@ -60,11 +67,17 @@ class ContextPack:
         lines.append("")
         savings_text = f"{self.token_reduction_pct:.1f}%" if self.token_reduction_pct > 0 else "0%"
         mode_label = "DIRECT" if self.caveman == "full" else self.caveman.upper()
+        risk_icon = {"LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🟠", "CRITICAL": "🔴"}.get(self.risk_level, "⚪")
         lines.append(
             f"> ⚡ **ReduceToken Optimization Engine**:\n"
             f"> - **Input Tokens**: ~{self.estimated_tokens:,} tokens (saved {savings_text} vs ~{self.baseline_tokens:,} full candidate tokens)\n"
-            f"> - **Output Mode**: REDUCETOKEN {mode_label} (estimated ~{out_savings:.0f}% output tokens saved & thinking monologue overridden)"
+            f"> - **Output Mode**: REDUCETOKEN {mode_label} (estimated ~{out_savings:.0f}% output tokens saved & thinking monologue overridden)\n"
+            f"> - **Change Risk Assessment**: {risk_icon} {self.risk_level} (Score: {self.risk_score}/100)"
         )
+        if self.risk_factors:
+            for factor in self.risk_factors[:3]:
+                lines.append(f">   • {factor}")
+
         lines.append("")
         if caveman_block:
             lines.append(caveman_block)
@@ -170,11 +183,15 @@ def build_context_pack(
         impacted.append(ContextFile(path=path, distance=depth, snippets=snippets))
         current_tokens += file_tokens
 
+    risk_rep = calculate_risk_score(store, changed, blast)
     pack = ContextPack(
         changed=changed,
         impacted=impacted,
         baseline_tokens=baseline_tokens,
         caveman=caveman,
+        risk_level=risk_rep.level,
+        risk_score=risk_rep.score,
+        risk_factors=risk_rep.factors,
     )
     # Calculate estimated tokens of generated prompt
     pack.estimated_tokens = estimate_tokens(pack.to_markdown())

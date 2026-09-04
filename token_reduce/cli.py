@@ -125,6 +125,12 @@ def build_parser() -> argparse.ArgumentParser:
     strat_p = sub.add_parser("strategy", help="Founder Strategy: 6 forcing questions to reframe scope (/strategy)")
     _add_specialist_args(strat_p)
 
+    risk_p = sub.add_parser("risk", help="Calculate objective risk score and detect test gaps for changes")
+    risk_p.add_argument("--changed", nargs="*", default=[], help="Optional changed files; if empty auto-detect from git")
+    risk_p.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+
+    sub.add_parser("mcp", help="Run native Model Context Protocol (MCP) server over stdio")
+
     return parser
 
 
@@ -166,6 +172,9 @@ def _intercept_slash_commands(argv: list[str]) -> list[str]:
         "/investigate": "debug",
         "/strategy": "strategy",
     }
+    if first == "/risk":
+        return ["risk"] + argv[1:]
+
     if first in _role_cmd_map:
         target_cmd = _role_cmd_map[first]
         return [target_cmd, "--copy", "--print"] + argv[1:]
@@ -186,6 +195,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "init":
         print(f"initialized: {cfg.state_dir}")
         return 0
+
+    if args.command == "mcp":
+        from .mcp import run_mcp_server
+        return run_mcp_server(args.project_root)
 
     if args.command == "clean":
         files_removed = []
@@ -351,6 +364,50 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 for node, distance in blast:
                     print(f"{distance}\t{node}")
+            return 0
+
+        if args.command == "risk":
+            changed_input = list(args.changed)
+            if not changed_input:
+                changed_paths = analyzer.changed_files_from_worktree()
+                changed = [
+                    str(p.resolve().relative_to(analyzer.project_root.resolve())).replace("\\", "/")
+                    for p in changed_paths
+                    if p.exists()
+                ]
+            else:
+                changed = []
+                for item in changed_input:
+                    p = Path(item)
+                    resolved = (p if p.is_absolute() else analyzer.project_root / p).resolve()
+                    try:
+                        rel = str(resolved.relative_to(analyzer.project_root.resolve())).replace("\\", "/")
+                        changed.append(rel)
+                    except ValueError:
+                        changed.append(item.replace("\\", "/"))
+
+            from .risk import calculate_risk_score
+            blast = analyzer.blast_radius([analyzer.project_root / c for c in changed], max_depth=2)
+            report = calculate_risk_score(analyzer.store, changed, blast)
+            if args.json:
+                print(json.dumps(report.to_dict(), indent=2))
+            else:
+                icon = {"LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🟠", "CRITICAL": "🔴"}.get(report.level, "⚪")
+                print(f"Risk Assessment: {icon} {report.level} (Score: {report.score}/100)")
+                print(f"Fan-in Count: {report.fan_in_count}")
+                print(f"Impacted Files: {report.impacted_file_count}")
+                if report.test_gap_files:
+                    print(f"Test Gaps ({len(report.test_gap_files)} modified file(s) lack tests):")
+                    for tg in report.test_gap_files:
+                        print(f"  ❌ {tg}")
+                if report.sensitive_files:
+                    print(f"Sensitive Areas Modified ({len(report.sensitive_files)}):")
+                    for sf in report.sensitive_files:
+                        print(f"  🔒 {sf}")
+                if report.factors:
+                    print("Risk Factors:")
+                    for f in report.factors:
+                        print(f"  • {f}")
             return 0
 
         if args.command == "context":

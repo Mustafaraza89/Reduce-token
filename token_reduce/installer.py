@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .config import AppConfig
+from .mcp import install_mcp_configs
 from .slash_commands import install_all_slash_commands
 
 
@@ -37,6 +38,10 @@ def install_integrations(config: AppConfig, start_watcher: bool = True, install_
             configured_tools.append("gemini-slash")
         if slash_res.vscode_configured:
             configured_tools.append("vscode-tasks")
+
+    mcp_installed = install_mcp_configs(root)
+    if mcp_installed:
+        configured_tools.extend(mcp_installed)
 
     if _configure_cursor(root):
         configured_tools.append("cursor")

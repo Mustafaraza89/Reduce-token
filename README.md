@@ -4,12 +4,14 @@
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests: 18 Passing](https://img.shields.io/badge/tests-18%20passing-brightgreen.svg)]()
+[![Tests: 21 Passing](https://img.shields.io/badge/tests-21%20passing-brightgreen.svg)]()
 
-**ReduceToken** dramatically cuts the tokens consumed by AI coding assistants while turning your AI into a full virtual engineering team. Works out-of-the-box with **Claude Code, Cursor, Gemini, GitHub Copilot, VS Code, and any terminal** via universal slash commands.
+**ReduceToken** dramatically cuts the tokens consumed by AI coding assistants while turning your AI into a full virtual engineering team. Works out-of-the-box with **Claude Code, Cursor, Gemini, GitHub Copilot, VS Code, and any terminal** via universal slash commands and native Model Context Protocol (MCP).
 
 - **Input Token Reduction: 80% – 95%** — via AST Knowledge Graph & Blast Radius Analysis
 - **Output Token Reduction: 50% – 75%** — via ReduceToken Direct Engine (silences AI monologue & filler)
+- **Objective Risk Scoring & Test Gap Analysis** — fan-in analysis, sensitive file flags, and test gap detector (0–100 score)
+- **Native stdio Model Context Protocol (MCP) Server** — directly exposes tools to Claude Desktop, Cursor, and VS Code
 - **Role-Based Engineering Squad** — dedicated slash commands for Review, Planning, Security, QA, and Shipping
 
 ---
@@ -80,6 +82,7 @@ token-reduce qa           # QA regression test generator
 token-reduce ship         # Release PR preparation
 token-reduce debug        # Root cause AST tracer
 token-reduce strategy     # Product strategy session
+token-reduce risk         # Objective change risk scoring & test gap detector
 ```
 
 ---
@@ -204,10 +207,52 @@ token-reduce use --caveman full --copy --print
 | Editor | How It Works |
 |---|---|
 | **Claude Code** | Global slash commands in `~/.claude/commands/` (`/review`, `/plan`, `/reduce`, etc.) |
-| **Cursor AI** | `.cursor/rules/reduce-token.mdc` auto-applied |
+| **Cursor AI** | `.cursor/rules/reduce-token.mdc` auto-applied & `.cursor/mcp.json` |
 | **Gemini / Antigravity** | `GEMINI.md` workspace rule auto-loaded |
-| **VS Code** | Command Palette → Run Task → "ReduceToken: Direct Context" |
+| **VS Code** | Command Palette tasks & `.vscode/mcp.json` native MCP server |
 | **GitHub Copilot** | `.github/copilot-instructions.md` auto-read by Copilot |
+| **MCP (Model Context Protocol)** | stdio MCP server for Claude Desktop, Cursor, and VS Code |
+
+---
+
+## 🛡️ Objective Risk Scoring & Test Gap Detector
+
+ReduceToken calculates an objective 0–100 risk score based on AST call graph fan-in, blast radius magnitude, sensitive components modified (auth, crypto, billing, migrations), and automated test gap detection:
+
+```bash
+token-reduce risk
+```
+
+**Live Output:**
+```
+Risk Assessment: 🟠 HIGH (Score: 70/100)
+Fan-in Count: 5
+Impacted Files: 11
+Test Gaps (2 modified file(s) lack tests):
+  ❌ token_reduce/mcp.py
+  ❌ token_reduce/risk.py
+Risk Factors:
+  • Large blast radius: 11 dependent files affected
+  • Moderate caller fan-in: 5 external files call modified symbols
+  • Test gaps detected: 2 modified file(s) lack test coverage
+```
+
+---
+
+## 🔌 Native Model Context Protocol (MCP) Server
+
+ReduceToken includes a native, zero-dependency stdio Model Context Protocol (MCP) server. When you run `token-reduce setup`, configuration files are auto-generated for **Cursor** (`.cursor/mcp.json`) and **VS Code** (`.vscode/mcp.json`).
+
+### Exposed MCP Tools
+1. **`reducetoken_get_context`**: Provides token-reduced blast-radius context directly to your agent.
+2. **`reducetoken_blast_radius`**: Exposes impacted nodes and call graph dependencies.
+3. **`reducetoken_risk_score`**: Returns objective risk score, fan-in count, sensitive flags, and test gaps.
+4. **`reducetoken_specialist`**: Triggers role-based analysis (review, plan, security, qa, ship, debug, strategy).
+
+To run manually:
+```bash
+token-reduce mcp
+```
 
 ---
 
@@ -254,7 +299,9 @@ clipboard=copied /review prompt to system clipboard!
 | `token-reduce ship` | Release Engineer pre-flight checks and PR notes |
 | `token-reduce debug` | Root cause debugger tracing AST callers |
 | `token-reduce strategy` | Founder Strategy session with 6 forcing questions |
-| `token-reduce setup` | One-time setup: build graph + install editor integrations + git hooks |
+| `token-reduce risk` | Objective risk scoring (0-100), fan-in, and test gap detector |
+| `token-reduce mcp` | Run native stdio Model Context Protocol (MCP) server |
+| `token-reduce setup` | One-time setup: build graph + install editor integrations + git hooks + MCP configs |
 | `token-reduce use` | Daily command with full flag control (`--caveman`, `--max-tokens`, `--copy`, `--print`) |
 | `token-reduce build` | Scan codebase and build/update AST graph index |
 | `token-reduce sync` | Incrementally sync only changed files |
@@ -278,7 +325,7 @@ Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP, Swift, Ko
 python -m unittest discover -s tests -v
 ```
 
-**All 18 tests pass in under 0.15 seconds.**
+**All 21 tests pass in under 0.15 seconds.**
 
 ---
 
@@ -291,6 +338,8 @@ Reduce-token/
 ├── pyproject.toml                  # pip package config
 ├── token_reduce/
 │   ├── cli.py                      # CLI entry point (token-reduce command)
+│   ├── risk.py                     # Objective Risk Engine & Test Gap Detector
+│   ├── mcp.py                      # Native stdio Model Context Protocol Server
 │   ├── context_pack.py             # Blast radius → context builder
 │   ├── caveman.py                  # ReduceToken Direct Engine (output override)
 │   ├── specialists.py              # Specialist squad roles (Review, Plan, CSO, QA, Ship)
@@ -298,9 +347,11 @@ Reduce-token/
 │   └── ...                        # Language parsers, graph engine, DB layer
 ├── .claude/commands/               # Global Claude slash commands (/review, /plan, /security, /qa, /ship, /debug, /strategy, /reduce, /reducetoken)
 ├── .cursor/rules/                  # Cursor AI rule
+├── .cursor/mcp.json                # Cursor native MCP config
 ├── .github/copilot-instructions.md # Copilot instructions
 ├── .vscode/tasks.json              # VS Code tasks
-└── tests/test_token_reduce.py      # 18-test suite
+├── .vscode/mcp.json                # VS Code native MCP config
+└── tests/test_token_reduce.py      # 21-test suite
 ```
 
 ---
