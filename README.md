@@ -362,6 +362,20 @@ PRs welcome. Open an issue first to discuss your change.
 
 ---
 
-## 📄 License
+## 📄 License & Copyright
 
-MIT — free for personal and commercial use.
+Copyright (c) 2026 **Mustafaraza89**. Released under the **[MIT License](LICENSE)**.
+
+### What Does This Mean?
+
+| Permission / Condition | Allowed? | Details |
+|---|:---:|---|
+| **Commercial Use** | ✅ Yes | You can use ReduceToken in commercial projects, closed-source enterprise software, or commercial AI pipelines. |
+| **Modification** | ✅ Yes | You can freely modify, fork, extend, or rewrite any part of the codebase. |
+| **Distribution** | ✅ Yes | You can distribute copies of the original or modified software. |
+| **Private Use** | ✅ Yes | You can use and modify the software privately within your organization without publishing changes. |
+| **Sublicensing** | ✅ Yes | You can grant sublicenses to distribute the software to third parties. |
+| **Include Copyright & License** | ⚠️ Required | You must include the original copyright notice and permission notice in all copies or substantial portions of the software. |
+| **Liability & Warranty** | ❌ None | The software is provided "as is", without warranty of any kind. Authors bear no liability for damages. |
+
+See the full [LICENSE](LICENSE) file for legal text.
