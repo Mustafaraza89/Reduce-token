@@ -294,7 +294,7 @@ class TokenReduceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             installed = install_all_slash_commands(root)
-            self.assertEqual(installed.claude_commands, ["/reduce", "/reducetoken"])
+            self.assertEqual(installed.claude_commands, ["/reduce", "/reducetoken", "/gstack-reduce"])
             self.assertEqual(len(installed.cursor_rules), 1)
             self.assertTrue(installed.gemini_configured)
             self.assertTrue(installed.vscode_configured)
@@ -303,6 +303,7 @@ class TokenReduceTests(unittest.TestCase):
             # Local project install writes to root/.claude/commands/
             self.assertTrue((root / ".claude" / "commands" / "reduce.md").exists())
             self.assertTrue((root / ".claude" / "commands" / "reducetoken.md").exists())
+            self.assertTrue((root / ".claude" / "commands" / "gstack-reduce.md").exists())
             claude_reduce = (root / ".claude" / "commands" / "reduce.md").read_text(encoding="utf-8")
             self.assertIn("/reduce", claude_reduce)
             self.assertIn("token-reduce", claude_reduce)
@@ -340,6 +341,19 @@ class TokenReduceTests(unittest.TestCase):
         self.assertIn("--query", args_reduce)
         self.assertIn("auth", args_reduce)
 
+        # Test gstack slash commands
+        args_gstack = _intercept_slash_commands(["/gstack"])
+        self.assertEqual(args_gstack[0], "gstack")
+        self.assertIn("--copy", args_gstack)
+
+        args_gstack_review = _intercept_slash_commands(["/gstack-review"])
+        self.assertEqual(args_gstack_review[0], "gstack")
+        self.assertIn("review", args_gstack_review)
+
+        args_gstack_plan = _intercept_slash_commands(["/gstack-plan"])
+        self.assertEqual(args_gstack_plan[0], "gstack")
+        self.assertIn("plan-eng-review", args_gstack_plan)
+
         # Test regular command passes through untouched
         args_normal = _intercept_slash_commands(["stats", "--json"])
         self.assertEqual(args_normal, ["stats", "--json"])
@@ -373,7 +387,50 @@ class TokenReduceTests(unittest.TestCase):
             finally:
                 analyzer.close()
 
+    def test_gstack_flow_and_prompt_generation(self) -> None:
+        from token_reduce.gstack import run_gstack_flow
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "auth.py").write_text(
+                "def authenticate(user: str, token: str) -> bool:\n"
+                "    return token == 'secret'\n",
+                encoding="utf-8",
+            )
+            cfg = load_config(root)
+            analyzer = Analyzer(cfg)
+            try:
+                analyzer.build_graph()
+                res = run_gstack_flow(
+                    config=cfg,
+                    analyzer=analyzer,
+                    skill="review",
+                    assistant="claude",
+                    changed_inputs=["auth.py"],
+                    caveman="full",
+                )
+                self.assertEqual(res.skill, "review")
+                self.assertIn("Staff Engineer", res.role)
+                self.assertIn("auth.py", res.changed)
+
+                prompt_text = Path(res.prompt_md_path).read_text(encoding="utf-8")
+                self.assertIn("ReduceToken + gstack Engine", prompt_text)
+                self.assertIn("Staff Engineer / Production Bug Hunter", prompt_text)
+                self.assertIn("CRITICAL SYSTEM OVERRIDE", prompt_text)
+                self.assertIn("Impacted Codebase Context (AST Blast Radius)", prompt_text)
+            finally:
+                analyzer.close()
+
+    def test_gstack_cli_execution(self) -> None:
+        from token_reduce.cli import main
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "app.py").write_text("def start():\n    pass\n", encoding="utf-8")
+            ret = main(["--project-root", str(root), "gstack", "--skill", "plan-eng-review", "--json"])
+            self.assertEqual(ret, 0)
+
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

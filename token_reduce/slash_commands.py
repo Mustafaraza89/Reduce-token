@@ -63,7 +63,7 @@ def _install_claude_commands(root: Path) -> list[str]:
             # Graceful fallback: global install failed (sandbox / no home dir access)
             pass
 
-    return ["/reduce", "/reducetoken"]
+    return ["/reduce", "/reducetoken", "/gstack-reduce"]
 
 
 def _write_claude_commands(cmd_dir: Path) -> None:
@@ -101,6 +101,20 @@ Execute `/reducetoken` mode:
 """.strip() + "\n",
         encoding="utf-8",
     )
+
+    gstack_cmd = cmd_dir / "gstack-reduce.md"
+    gstack_cmd.write_text(
+        """---
+description: /gstack-reduce - Optimize gstack sprint skills (/plan-eng-review, /review, /ship) with ReduceToken blast radius
+---
+Execute gstack workflow with ReduceToken optimization:
+1. Run `token-reduce gstack --skill review --copy --print` to generate blast radius for the active change.
+2. In gstack skills (/plan-eng-review, /review, /cso, /ship, /investigate), analyze ONLY the impacted context.
+3. Apply ReduceToken Direct rules: zero pleasantries, direct diffs, maximum tokens saved.
+""".strip() + "\n",
+        encoding="utf-8",
+    )
+
 
 
 
