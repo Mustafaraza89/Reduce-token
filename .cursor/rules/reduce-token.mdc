@@ -1,0 +1,18 @@
+---
+description: ReduceToken: Blast-radius context and direct code-first answers
+globs:
+alwaysApply: true
+---
+# ReduceToken Optimization
+
+## 1. Input Context
+Before broad edits across the codebase, run:
+- `token-reduce /`
+- `token-reduce context --changed <paths> --max-tokens 2000`
+Use only the impacted context set instead of reading full repository files.
+
+## 2. Output Direct Directive
+- Override conversational monologues and thinking preambles.
+- Zero pleasantries (never say "Sure!", "Certainly!", "I can help with that").
+- Code-first: output the exact diff or implementation immediately.
+- Deliver maximum signal with minimum tokens.

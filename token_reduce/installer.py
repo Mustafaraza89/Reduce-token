@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .config import AppConfig
+from .slash_commands import install_all_slash_commands
 
 
 @dataclass(slots=True)
@@ -17,7 +18,7 @@ class InstallResult:
     notes: list[str]
 
 
-def install_integrations(config: AppConfig, start_watcher: bool = True) -> InstallResult:
+def install_integrations(config: AppConfig, start_watcher: bool = True, install_slash: bool = True) -> InstallResult:
     root = Path(config.project_root)
     configured_tools: list[str] = []
     hooks_installed: list[str] = []
@@ -25,10 +26,26 @@ def install_integrations(config: AppConfig, start_watcher: bool = True) -> Insta
 
     _ensure_state(root)
 
+    if install_slash:
+        slash_res = install_all_slash_commands(root)
+        notes.extend(slash_res.notes)
+        if slash_res.claude_commands:
+            configured_tools.append("claude-slash")
+        if slash_res.cursor_rules:
+            configured_tools.append("cursor-slash")
+        if slash_res.gemini_configured:
+            configured_tools.append("gemini-slash")
+        if slash_res.vscode_configured:
+            configured_tools.append("vscode-tasks")
+
     if _configure_cursor(root):
         configured_tools.append("cursor")
     if _configure_claude(root):
         configured_tools.append("claude")
+    if _configure_gemini(root):
+        configured_tools.append("gemini")
+    if _configure_vscode(root):
+        configured_tools.append("vscode")
 
     hook_names, hook_notes = _install_git_hooks(root)
     hooks_installed.extend(hook_names)
@@ -100,6 +117,59 @@ Use the impacted set instead of loading the full repository.
             claude_md.write_text(f"{text.rstrip()}\n\n{section}\n", encoding="utf-8")
     else:
         claude_md.write_text(f"{section}\n", encoding="utf-8")
+    return True
+
+
+def _configure_gemini(root: Path) -> bool:
+    gemini_md = root / "GEMINI.md"
+    gemini_dir = root / ".gemini"
+    if not gemini_md.exists() and not gemini_dir.exists():
+        return False
+
+    section = """
+## Token Reduce Context Workflow
+Before broad repository modifications, use Token Reduce context:
+- `token-reduce use --assistant gemini`
+Prioritize impacted context instead of reading full repository files.
+""".strip()
+
+    if gemini_md.exists():
+        text = gemini_md.read_text(encoding="utf-8", errors="replace")
+        if "## Token Reduce Context Workflow" not in text:
+            gemini_md.write_text(f"{text.rstrip()}\n\n{section}\n", encoding="utf-8")
+    else:
+        gemini_md.write_text(f"{section}\n", encoding="utf-8")
+    return True
+
+
+def _configure_vscode(root: Path) -> bool:
+    vscode_dir = root / ".vscode"
+    if not vscode_dir.exists():
+        return False
+
+    tasks_path = vscode_dir / "tasks.json"
+    if tasks_path.exists():
+        return False
+
+    import json
+    tasks_content = {
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "label": "Token Reduce: Quick Context",
+                "type": "shell",
+                "command": "token-reduce use --assistant generic --print",
+                "problemMatcher": [],
+            },
+            {
+                "label": "Token Reduce: Build Graph",
+                "type": "shell",
+                "command": "token-reduce build",
+                "problemMatcher": [],
+            },
+        ],
+    }
+    tasks_path.write_text(json.dumps(tasks_content, indent=2), encoding="utf-8")
     return True
 
 

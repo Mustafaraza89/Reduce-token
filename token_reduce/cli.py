@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from .analyzer import Analyzer
+from .caveman import CAVEMAN_CHOICES, estimate_output_savings_pct
 from .config import AppConfig, load_config, save_config
 from .context_pack import build_context_pack
 from .easy_mode import ASSISTANT_CHOICES, default_launch_command, read_prompt, run_use_flow
@@ -17,14 +18,14 @@ from .watcher import Watcher
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="token-reduce", description="Incremental code knowledge graph for AI context reduction")
+    parser = argparse.ArgumentParser(prog="token-reduce", description="ReduceToken: Incremental code knowledge graph & direct token reduction framework")
     parser.add_argument("--project-root", type=Path, default=Path.cwd(), help="Project root (default: current directory)")
 
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("init", help="Create config and graph state directory")
 
-    setup = sub.add_parser("setup", help="One-time setup: init + build + install")
+    setup = sub.add_parser("setup", help="One-time setup: init + build + install slash commands")
     setup.add_argument("--no-watch", action="store_true", help="Skip starting watcher")
     setup.add_argument("--json", action="store_true", help="Output machine-readable JSON")
 
@@ -46,6 +47,9 @@ def build_parser() -> argparse.ArgumentParser:
     context.add_argument("--changed", nargs="+", required=True, help="Changed files")
     context.add_argument("--depth", type=int, default=None, help="Traversal depth")
     context.add_argument("--max-files", type=int, default=None, help="Limit impacted files")
+    context.add_argument("--max-tokens", type=int, default=None, help="Limit context token budget")
+    context.add_argument("--caveman", choices=CAVEMAN_CHOICES, default="full", help="ReduceToken direct mode level (default: full)")
+    context.add_argument("--print", dest="print_prompt", action="store_true", help="Print generated prompt markdown to stdout")
     context.add_argument("--out", type=Path, default=None, help="Write context JSON to file")
 
     use = sub.add_parser("use", help="Easy daily command: auto-sync + context + ready prompt")
@@ -53,11 +57,18 @@ def build_parser() -> argparse.ArgumentParser:
     use.add_argument("--changed", nargs="*", default=[], help="Optional changed files; if empty auto-detect from git")
     use.add_argument("--depth", type=int, default=None, help="Traversal depth")
     use.add_argument("--max-files", type=int, default=None, help="Limit impacted files")
+    use.add_argument("--max-tokens", type=int, default=None, help="Limit context token budget")
+    use.add_argument("--caveman", choices=CAVEMAN_CHOICES, default="full", help="ReduceToken direct mode level (default: full)")
     use.add_argument("--out-dir", type=Path, default=None, help="Output directory for context and prompt files")
     use.add_argument("--print", dest="print_prompt", action="store_true", help="Print generated prompt markdown to stdout")
+    use.add_argument("--copy", dest="copy_prompt", action="store_true", help="Copy generated prompt markdown to clipboard")
     use.add_argument("--launch", action="store_true", help="Launch assistant CLI and send generated prompt over stdin")
     use.add_argument("--cmd", type=str, default=None, help="Override launch command, e.g. 'gemini'")
     use.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+
+    clean = sub.add_parser("clean", help="Reset/clean graph database and cached state")
+    clean.add_argument("--all", action="store_true", help="Also remove assistant prompt/context cache")
+    clean.add_argument("--json", action="store_true", help="Output machine-readable JSON")
 
     watch = sub.add_parser("watch", help="Watch filesystem and sync graph incrementally")
     watch.add_argument("--interval", type=float, default=None, help="Polling interval seconds")
@@ -79,12 +90,51 @@ def _load_cfg(root: Path) -> AppConfig:
     return cfg
 
 
+def _intercept_slash_commands(argv: list[str]) -> list[str]:
+    """Intercept slash command aliases like '/', '/reduce', '/reducetoken' and map to 'use' flow."""
+    if argv and argv[0] in ("/", "/reduce", "/reducetoken", "/caveman", "/opt", "/raw"):
+        slash_cmd = argv[0]
+        remaining = argv[1:]
+        mode_lvl = "raw" if slash_cmd in ("/caveman", "/raw") else "full"
+        return ["use", "--caveman", mode_lvl, "--copy", "--print"] + remaining
+    return argv
+
+
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+
+    argv = _intercept_slash_commands(argv)
     args = build_parser().parse_args(argv)
     cfg = _load_cfg(args.project_root)
 
     if args.command == "init":
         print(f"initialized: {cfg.state_dir}")
+        return 0
+
+    if args.command == "clean":
+        files_removed = []
+        for name in ("graph.db", "graph.db-wal", "graph.db-shm", "watch.pid", "watch.log"):
+            p = cfg.state_dir / name
+            if p.exists():
+                try:
+                    p.unlink(missing_ok=True)
+                    files_removed.append(name)
+                except OSError:
+                    pass
+        if getattr(args, "all", False):
+            assistant_dir = cfg.state_dir / "assistant"
+            if assistant_dir.exists():
+                try:
+                    shutil.rmtree(assistant_dir, ignore_errors=True)
+                    files_removed.append("assistant/")
+                except OSError:
+                    pass
+        payload = {"cleaned": True, "removed": files_removed, "state_dir": str(cfg.state_dir)}
+        if args.json:
+            print(json.dumps(payload, indent=2))
+        else:
+            print(f"clean_complete: removed {len(files_removed)} state item(s) from {cfg.state_dir}")
         return 0
 
     if args.command == "setup":
@@ -206,16 +256,27 @@ def main(argv: list[str] | None = None) -> int:
                 except ValueError:
                     continue
                 changed_rel.append(rel)
-            pack = build_context_pack(cfg, analyzer.store, blast, changed_rel, max_files=args.max_files)
+            pack = build_context_pack(
+                config=cfg,
+                store=analyzer.store,
+                blast=blast,
+                changed=changed_rel,
+                max_files=args.max_files,
+                max_tokens=args.max_tokens,
+                caveman=getattr(args, "caveman", "full"),
+            )
             payload = pack.to_json()
             if args.out:
                 args.out.write_text(payload, encoding="utf-8")
                 print(str(args.out))
+            elif getattr(args, "print_prompt", False):
+                print(pack.to_markdown())
             else:
                 print(payload)
             return 0
 
         if args.command == "use":
+            caveman_lvl = getattr(args, "caveman", "full")
             try:
                 result = run_use_flow(
                     config=cfg,
@@ -225,19 +286,34 @@ def main(argv: list[str] | None = None) -> int:
                     depth=args.depth,
                     max_files=args.max_files,
                     out_dir=args.out_dir,
+                    max_tokens=args.max_tokens,
+                    caveman=caveman_lvl,
                 )
             except ValueError as err:
                 print(f"error: {err}", file=sys.stderr)
                 return 2
+
+            prompt_text = read_prompt(result)
+            copied = False
+            if getattr(args, "copy_prompt", False):
+                copied = _copy_to_clipboard(prompt_text)
+
+            out_savings = estimate_output_savings_pct(result.caveman)
             payload = {
                 "assistant": result.assistant,
+                "mode": "ReduceToken(AST+DirectEngine)",
                 "graph_built": result.graph_built,
                 "changed": result.changed,
                 "sync": result.sync_summary,
                 "context_json": result.context_json_path,
                 "prompt_md": result.prompt_md_path,
+                "estimated_tokens": result.estimated_tokens,
+                "baseline_tokens": result.baseline_tokens,
+                "token_reduction_pct": result.token_reduction_pct,
+                "direct_mode": result.caveman,
+                "estimated_output_savings_pct": out_savings,
+                "clipboard_copied": copied,
             }
-            prompt_text = read_prompt(result)
 
             launch_status = None
             launch_error = None
@@ -254,13 +330,24 @@ def main(argv: list[str] | None = None) -> int:
             if args.json:
                 print(json.dumps(payload, indent=2))
             else:
-                print(f"assistant={result.assistant}")
+                mode_lbl = "DIRECT" if result.caveman == "full" else result.caveman.upper()
+                print(f"mode=ReduceToken(AST+DirectEngine) assistant={result.assistant}")
                 print(f"changed={','.join(result.changed) or 'none'}")
+                print(
+                    f"tokens_input=~{result.estimated_tokens:,} "
+                    f"baseline=~{result.baseline_tokens:,} "
+                    f"saved={result.token_reduction_pct:.1f}%"
+                )
+                print(
+                    f"reducetoken_mode={mode_lbl} (est_output_saved=~{out_savings:.0f}% + thinking_overridden)"
+                )
                 print(
                     f"sync_parsed={result.sync_summary['parsed']} sync_skipped={result.sync_summary['skipped']} sync_removed={result.sync_summary['removed']}"
                 )
                 print(f"context_json={result.context_json_path}")
                 print(f"prompt_md={result.prompt_md_path}")
+                if copied:
+                    print("clipboard=copied ReduceToken prompt to system clipboard!")
                 if args.print_prompt:
                     print("")
                     print(prompt_text)
@@ -268,8 +355,8 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"launch_status={launch_status}")
                     if launch_error:
                         print(f"launch_error={launch_error}")
-                if not args.print_prompt and not args.launch:
-                    print("next: copy prompt_md content and paste it into your AI assistant.")
+                if not args.print_prompt and not args.launch and not copied:
+                    print("next: copy prompt_md content or run with --copy / --print / --launch.")
             return 0
 
         if args.command == "status":
@@ -279,19 +366,50 @@ def main(argv: list[str] | None = None) -> int:
             symbol_count = int(row["count"]) if row else 0
             row = analyzer.store.conn.execute("SELECT COUNT(*) AS count FROM edges").fetchone()
             edge_count = int(row["count"]) if row else 0
+
+            lang_rows = analyzer.store.conn.execute(
+                "SELECT language, COUNT(*) AS count FROM files GROUP BY language ORDER BY count DESC"
+            ).fetchall()
+            languages = {r["language"]: int(r["count"]) for r in lang_rows}
+
+            db_size_kb = 0.0
+            if cfg.graph_db_path.exists():
+                try:
+                    db_size_kb = round(cfg.graph_db_path.stat().st_size / 1024, 1)
+                except OSError:
+                    pass
+
+            pid_file = cfg.state_dir / "watch.pid"
+            watcher_active = False
+            if pid_file.exists():
+                try:
+                    import os
+                    pid = int(pid_file.read_text(encoding="utf-8").strip())
+                    os.kill(pid, 0)
+                    watcher_active = True
+                except (ValueError, OSError):
+                    pass
+
             payload = {
                 "project_root": cfg.project_root,
                 "graph_db": str(cfg.graph_db_path),
+                "db_size_kb": db_size_kb,
                 "files": file_count,
                 "symbols": symbol_count,
                 "edges": edge_count,
+                "languages": languages,
+                "watcher_active": watcher_active,
             }
             if args.json:
                 print(json.dumps(payload, indent=2))
             else:
+                lang_str = ", ".join(f"{k}:{v}" for k, v in languages.items()) or "none"
                 print(
-                    f"files={payload['files']} symbols={payload['symbols']} edges={payload['edges']} graph_db={payload['graph_db']}"
+                    f"files={file_count} symbols={symbol_count} edges={edge_count} "
+                    f"db_size={db_size_kb}KB watcher_active={watcher_active}"
                 )
+                print(f"languages={lang_str}")
+                print(f"graph_db={payload['graph_db']}")
             return 0
 
         if args.command == "watch":
@@ -303,6 +421,18 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     finally:
         analyzer.close()
+
+
+def _copy_to_clipboard(text: str) -> bool:
+    for cmd in (["pbcopy"], ["xclip", "-selection", "clipboard"], ["wl-copy"], ["clip"]):
+        if shutil.which(cmd[0]):
+            try:
+                proc = subprocess.run(cmd, input=text, text=True, check=False)
+                if proc.returncode == 0:
+                    return True
+            except OSError:
+                pass
+    return False
 
 
 def _launch_assistant(assistant: str, prompt_text: str, override_command: str | None) -> tuple[str, str | None]:

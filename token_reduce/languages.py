@@ -114,6 +114,12 @@ class _PythonAnalyzer(ast.NodeVisitor):
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         sid = symbol_id(self.rel_path, node.name, "class", node.lineno)
+        bases_str = ""
+        if node.bases:
+            try:
+                bases_str = f"({', '.join(ast.unparse(b) for b in node.bases)})"
+            except Exception:
+                bases_str = "(...)"
         self.symbols.append(
             Symbol(
                 symbol_id=sid,
@@ -123,7 +129,7 @@ class _PythonAnalyzer(ast.NodeVisitor):
                 language=self.language,
                 start_line=node.lineno,
                 end_line=getattr(node, "end_lineno", node.lineno),
-                signature=f"class {node.name}",
+                signature=f"class {node.name}{bases_str}",
             )
         )
         self._owner_stack.append(sid)
@@ -136,6 +142,7 @@ class _PythonAnalyzer(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         sid = symbol_id(self.rel_path, node.name, "function", node.lineno)
+        sig = _py_func_signature(node, is_async=False)
         self.symbols.append(
             Symbol(
                 symbol_id=sid,
@@ -145,7 +152,7 @@ class _PythonAnalyzer(ast.NodeVisitor):
                 language=self.language,
                 start_line=node.lineno,
                 end_line=getattr(node, "end_lineno", node.lineno),
-                signature=f"def {node.name}(...)",
+                signature=sig,
             )
         )
         self._owner_stack.append(sid)
@@ -154,6 +161,7 @@ class _PythonAnalyzer(ast.NodeVisitor):
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         sid = symbol_id(self.rel_path, node.name, "function", node.lineno)
+        sig = _py_func_signature(node, is_async=True)
         self.symbols.append(
             Symbol(
                 symbol_id=sid,
@@ -163,7 +171,7 @@ class _PythonAnalyzer(ast.NodeVisitor):
                 language=self.language,
                 start_line=node.lineno,
                 end_line=getattr(node, "end_lineno", node.lineno),
-                signature=f"async def {node.name}(...)",
+                signature=sig,
             )
         )
         self._owner_stack.append(sid)
@@ -183,6 +191,21 @@ def _expr_name(expr: ast.expr) -> str:
     if isinstance(expr, ast.Attribute):
         return expr.attr
     return ""
+
+
+def _py_func_signature(node: ast.FunctionDef | ast.AsyncFunctionDef, is_async: bool) -> str:
+    prefix = "async def" if is_async else "def"
+    try:
+        args_str = ast.unparse(node.args)
+    except Exception:
+        args_str = "..."
+    ret_str = ""
+    if getattr(node, "returns", None):
+        try:
+            ret_str = f" -> {ast.unparse(node.returns)}"
+        except Exception:
+            pass
+    return f"{prefix} {node.name}({args_str}){ret_str}"
 
 
 def _parse_python(path: Path, rel_path: str, language: str) -> ParseResult:
@@ -244,20 +267,55 @@ IMPORT_PATTERNS = [
     re.compile(r"^\s*import\s+([a-zA-Z0-9_./@-]+)", re.MULTILINE),
     re.compile(r"^\s*from\s+([a-zA-Z0-9_./@-]+)\s+import", re.MULTILINE),
     re.compile(r"import\s+.*?from\s+[\"']([^\"']+)[\"']", re.MULTILINE),
+    re.compile(r"export\s+.*?from\s+[\"']([^\"']+)[\"']", re.MULTILINE),
     re.compile(r"require\([\"']([^\"']+)[\"']\)"),
     re.compile(r"#include\s+[\"<]([^\">]+)[\">]"),
+    re.compile(r"^\s*use\s+([a-zA-Z0-9_:]+);", re.MULTILINE),
 ]
 
 SYMBOL_PATTERNS = [
-    ("class", re.compile(r"^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)", re.MULTILINE)),
     (
-        "function",
+        "class",
         re.compile(
-            r"^\s*(?:def|function|func|fn)\s+([A-Za-z_][A-Za-z0-9_]*)|^\s*(?:public|private|protected)?\s*(?:static\s+)?[A-Za-z_<>,\[\]]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(",
+            r"^\s*(?:(?:export(?:\s+default)?|pub(?:\([^)]+\))?|abstract)\s+)?(?:class|interface|type|enum|struct|trait)\s+([A-Za-z_][A-Za-z0-9_]*)",
             re.MULTILINE,
         ),
     ),
-    ("function", re.compile(r"\bconst\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*\([^)]*\)\s*=>")),
+    (
+        "class",
+        re.compile(
+            r"^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+(?:struct|interface)",
+            re.MULTILINE,
+        ),
+    ),
+    (
+        "function",
+        re.compile(
+            r"^\s*(?:(?:export(?:\s+default)?|pub(?:\([^)]+\))?|async)\s+)*(?:def|function\*?|func|fn)\s+([A-Za-z_][A-Za-z0-9_]*)",
+            re.MULTILINE,
+        ),
+    ),
+    (
+        "function",
+        re.compile(
+            r"^\s*func\s*\([^)]+\)\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(",
+            re.MULTILINE,
+        ),
+    ),
+    (
+        "function",
+        re.compile(
+            r"^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_][A-Za-z0-9_]*)\s*=>",
+            re.MULTILINE,
+        ),
+    ),
+    (
+        "function",
+        re.compile(
+            r"^\s*(?:(?:public|private|protected|static|final|override|async)\s+)+[A-Za-z_<>,\[\]\?]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(",
+            re.MULTILINE,
+        ),
+    ),
 ]
 
 CALL_PATTERN = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(")
@@ -272,6 +330,12 @@ CALL_KEYWORDS = {
     "new",
     "super",
     "await",
+    "match",
+    "case",
+    "typeof",
+    "instanceof",
+    "throw",
+    "yield",
 }
 
 
@@ -283,13 +347,17 @@ def _parse_generic(path: Path, rel_path: str, language: str) -> ParseResult:
     for pattern in IMPORT_PATTERNS:
         result.imports.extend(match.group(1) for match in pattern.finditer(text))
 
+    seen_ids: set[str] = set()
     for kind, pattern in SYMBOL_PATTERNS:
         for match in pattern.finditer(text):
-            name = match.group(1) or match.group(2)
+            name = match.group(1)
             if not name:
                 continue
             line = text.count("\n", 0, match.start()) + 1
             sid = symbol_id(rel_path, name, kind, line)
+            if sid in seen_ids:
+                continue
+            seen_ids.add(sid)
             result.symbols.append(
                 Symbol(
                     symbol_id=sid,

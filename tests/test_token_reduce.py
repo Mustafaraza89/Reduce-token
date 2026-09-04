@@ -92,7 +92,7 @@ class TokenReduceTests(unittest.TestCase):
                 self.assertTrue(Path(result.context_json_path).exists())
                 self.assertTrue(Path(result.prompt_md_path).exists())
                 prompt = Path(result.prompt_md_path).read_text(encoding="utf-8")
-                self.assertIn("Token Reduce Prompt (chatgpt)", prompt)
+                self.assertIn("ReduceToken Context Prompt (chatgpt)", prompt)
                 self.assertIn("Changed Files", prompt)
             finally:
                 analyzer.close()
@@ -103,5 +103,274 @@ class TokenReduceTests(unittest.TestCase):
         self.assertIsNotNone(error)
 
 
+    def test_typescript_and_relative_import_resolution(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "src").mkdir()
+            (root / "src" / "utils.ts").write_text("export function helper(): number { return 42; }\n", encoding="utf-8")
+            (root / "src" / "index.ts").write_text("import { helper } from './utils';\n", encoding="utf-8")
+            (root / "src" / "components").mkdir()
+            (root / "src" / "components" / "index.tsx").write_text("export const Card = () => null;\n", encoding="utf-8")
+
+            cfg = load_config(root)
+            analyzer = Analyzer(cfg)
+            try:
+                # Direct relative import without extension
+                resolved = analyzer.resolve_import("src/index.ts", "./utils")
+                self.assertEqual(resolved, "src/utils.ts")
+
+                # Directory index resolution
+                resolved_index = analyzer.resolve_import("src/index.ts", "./components")
+                self.assertEqual(resolved_index, "src/components/index.tsx")
+            finally:
+                analyzer.close()
+
+    def test_enhanced_language_parsing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            # TypeScript
+            (root / "app.ts").write_text(
+                "export interface User { id: string; }\n"
+                "export const greet = (name: string) => `Hello ${name}`;\n"
+                "export async function fetchUser(): Promise<User> { return { id: '1' }; }\n",
+                encoding="utf-8",
+            )
+            # Python with typed signature
+            (root / "service.py").write_text(
+                "class BaseService:\n    pass\n\n"
+                "class UserService(BaseService):\n"
+                "    def find_user(self, user_id: str, active: bool = True) -> dict:\n"
+                "        return {'id': user_id}\n",
+                encoding="utf-8",
+            )
+            # Go
+            (root / "server.go").write_text(
+                "package main\n\n"
+                "type Server struct {}\n\n"
+                "func (s *Server) Start() error { return nil }\n",
+                encoding="utf-8",
+            )
+            # Rust
+            (root / "lib.rs").write_text(
+                "pub struct Config {}\n\n"
+                "pub fn init() -> Config { Config {} }\n",
+                encoding="utf-8",
+            )
+
+            cfg = load_config(root)
+            analyzer = Analyzer(cfg)
+            try:
+                summary = analyzer.build_graph()
+                self.assertEqual(summary["tracked"], 4)
+
+                ts_symbols = {s.name: s for s in analyzer.store.symbols_in_file("app.ts")}
+                self.assertIn("User", ts_symbols)
+                self.assertIn("greet", ts_symbols)
+                self.assertIn("fetchUser", ts_symbols)
+
+                py_symbols = {s.name: s for s in analyzer.store.symbols_in_file("service.py")}
+                self.assertIn("UserService", py_symbols)
+                self.assertIn("BaseService", py_symbols["UserService"].signature)
+                self.assertIn("find_user", py_symbols)
+                self.assertIn("user_id: str", py_symbols["find_user"].signature)
+
+                go_symbols = {s.name: s for s in analyzer.store.symbols_in_file("server.go")}
+                self.assertIn("Server", go_symbols)
+                self.assertIn("Start", go_symbols)
+
+                rs_symbols = {s.name: s for s in analyzer.store.symbols_in_file("lib.rs")}
+                self.assertIn("Config", rs_symbols)
+                self.assertIn("init", rs_symbols)
+            finally:
+                analyzer.close()
+
+    def test_token_estimation_and_max_tokens_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "a.py").write_text("def big_func():\n" + "    x = 1\n" * 100, encoding="utf-8")
+            (root / "b.py").write_text("import a\ndef caller():\n    return a.big_func()\n", encoding="utf-8")
+
+            cfg = load_config(root)
+            analyzer = Analyzer(cfg)
+            try:
+                analyzer.build_graph()
+                result = run_use_flow(
+                    config=cfg,
+                    analyzer=analyzer,
+                    assistant="gemini",
+                    changed_inputs=["a.py"],
+                    depth=2,
+                    max_files=10,
+                    out_dir=None,
+                    max_tokens=300,
+                )
+                self.assertGreater(result.estimated_tokens, 0)
+                self.assertGreater(result.baseline_tokens, 0)
+                self.assertGreaterEqual(result.token_reduction_pct, 0.0)
+
+                prompt = Path(result.prompt_md_path).read_text(encoding="utf-8")
+                self.assertIn("ReduceToken Optimization Engine", prompt)
+                self.assertIn("Gemini mode", prompt)
+            finally:
+                analyzer.close()
+
+    def test_clean_command_removes_state(self) -> None:
+        from token_reduce.cli import main
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "main.py").write_text("def x(): pass\n", encoding="utf-8")
+            # Run setup
+            ret = main(["--project-root", str(root), "setup", "--no-watch"])
+            self.assertEqual(ret, 0)
+            self.assertTrue((root / ".token-reduce" / "graph.db").exists())
+
+            # Run clean
+            ret_clean = main(["--project-root", str(root), "clean", "--all"])
+            self.assertEqual(ret_clean, 0)
+            self.assertFalse((root / ".token-reduce" / "graph.db").exists())
+
+    def test_configure_gemini_and_vscode(self) -> None:
+        from token_reduce.installer import _configure_gemini, _configure_vscode
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            # Gemini configure when GEMINI.md or .gemini doesn't exist
+            self.assertFalse(_configure_gemini(root))
+            (root / "GEMINI.md").write_text("# Old Notes\n", encoding="utf-8")
+            self.assertTrue(_configure_gemini(root))
+            self.assertIn("Token Reduce Context Workflow", (root / "GEMINI.md").read_text(encoding="utf-8"))
+
+            # VS Code tasks
+            self.assertFalse(_configure_vscode(root))
+            (root / ".vscode").mkdir()
+            self.assertTrue(_configure_vscode(root))
+            self.assertTrue((root / ".vscode" / "tasks.json").exists())
+
+    def test_git_porcelain_parsing(self) -> None:
+        from unittest.mock import patch, MagicMock
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cfg = load_config(root)
+            analyzer = Analyzer(cfg)
+            try:
+                mock_proc = MagicMock()
+                mock_proc.returncode = 0
+                mock_proc.stdout = "R  old.py -> new.py\n?? \"quoted.py\"\nM  regular.py\n"
+                with patch("subprocess.run", return_value=mock_proc):
+                    changed = analyzer.changed_files_from_worktree()
+                    names = [p.name for p in changed]
+                    self.assertIn("new.py", names)
+                    self.assertIn("quoted.py", names)
+                    self.assertIn("regular.py", names)
+                    self.assertNotIn("old.py", names)
+            finally:
+                analyzer.close()
+
+    def test_caveman_directives_and_savings_estimation(self) -> None:
+        from token_reduce.caveman import format_caveman_directive, estimate_output_savings_pct
+
+        # Test savings estimation
+        self.assertEqual(estimate_output_savings_pct("off"), 0.0)
+        self.assertEqual(estimate_output_savings_pct("mild"), 40.0)
+        self.assertEqual(estimate_output_savings_pct("full"), 65.0)
+        self.assertEqual(estimate_output_savings_pct("raw"), 75.0)
+
+        # Off mode has no directive
+        self.assertEqual(format_caveman_directive("off"), "")
+
+        # Mild, Full, Raw modes contain thinking override
+        for mode in ["mild", "full", "raw"]:
+            directive = format_caveman_directive(mode)
+            self.assertIn("CRITICAL SYSTEM OVERRIDE - ZERO CONVERSATIONAL FILLER", directive)
+            self.assertIn("DO NOT think out loud, monologue", directive)
+
+        # Raw mode requires code-only
+        raw_directive = format_caveman_directive("raw")
+        self.assertIn("Output ONLY code blocks", raw_directive)
+
+    def test_slash_commands_installation(self) -> None:
+        from token_reduce.slash_commands import install_all_slash_commands
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            installed = install_all_slash_commands(root)
+            self.assertEqual(installed.claude_commands, ["/reduce", "/reducetoken"])
+            self.assertEqual(len(installed.cursor_rules), 1)
+            self.assertTrue(installed.gemini_configured)
+            self.assertTrue(installed.vscode_configured)
+            self.assertTrue(installed.copilot_configured)
+
+            # Check Claude commands
+            self.assertTrue((root / ".claude" / "commands" / "reduce.md").exists())
+            self.assertTrue((root / ".claude" / "commands" / "reducetoken.md").exists())
+            claude_reduce = (root / ".claude" / "commands" / "reduce.md").read_text(encoding="utf-8")
+            self.assertIn("/reduce", claude_reduce)
+            self.assertIn("token-reduce", claude_reduce)
+
+            # Check Cursor rule
+            cursor_rule = root / ".cursor" / "rules" / "reduce-token.mdc"
+            self.assertTrue(cursor_rule.exists())
+            rule_text = cursor_rule.read_text(encoding="utf-8")
+            self.assertIn("alwaysApply: true", rule_text)
+            self.assertIn("ReduceToken", rule_text)
+
+            # Check Gemini / Antigravity instruction
+            gemini_file = root / "GEMINI.md"
+            self.assertTrue(gemini_file.exists())
+            self.assertIn("ReduceToken Mode", gemini_file.read_text(encoding="utf-8"))
+
+    def test_cli_slash_command_interception(self) -> None:
+        from token_reduce.cli import _intercept_slash_commands
+        # Test bare slash '/'
+        args_slash = _intercept_slash_commands(["/"])
+        self.assertEqual(args_slash[0], "use")
+        self.assertIn("--caveman", args_slash)
+        self.assertIn("full", args_slash)
+
+        # Test '/reducetoken'
+        args_reduce_tok = _intercept_slash_commands(["/reducetoken"])
+        self.assertEqual(args_reduce_tok[0], "use")
+        self.assertIn("--caveman", args_reduce_tok)
+        self.assertIn("full", args_reduce_tok)
+
+        # Test '/reduce'
+        args_reduce = _intercept_slash_commands(["/reduce", "--query", "auth"])
+        self.assertEqual(args_reduce[0], "use")
+        self.assertIn("--query", args_reduce)
+        self.assertIn("auth", args_reduce)
+
+        # Test regular command passes through untouched
+        args_normal = _intercept_slash_commands(["stats", "--json"])
+        self.assertEqual(args_normal, ["stats", "--json"])
+
+    def test_use_flow_with_caveman_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "calculator.py").write_text("def add(a: int, b: int) -> int:\n    return a + b\n", encoding="utf-8")
+            cfg = load_config(root)
+            analyzer = Analyzer(cfg)
+            try:
+                analyzer.build_graph()
+                result = run_use_flow(
+                    config=cfg,
+                    analyzer=analyzer,
+                    assistant="cursor",
+                    changed_inputs=["calculator.py"],
+                    depth=1,
+                    max_files=5,
+                    out_dir=None,
+                    caveman="full",
+                )
+                self.assertEqual(result.caveman, "full")
+                self.assertEqual(result.caveman_savings_pct, 65.0)
+
+                prompt_content = Path(result.prompt_md_path).read_text(encoding="utf-8")
+                # ReduceToken badge should be present
+                self.assertIn("ReduceToken Optimization Engine", prompt_content)
+                self.assertIn("CRITICAL SYSTEM OVERRIDE - ZERO CONVERSATIONAL FILLER", prompt_content)
+                self.assertIn("REDUCETOKEN DIRECT", prompt_content)
+            finally:
+                analyzer.close()
+
+
 if __name__ == "__main__":
     unittest.main()
+

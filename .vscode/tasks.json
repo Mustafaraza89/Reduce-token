@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "ReduceToken: Direct Context (/reduce)",
+      "type": "shell",
+      "command": "token-reduce / --assistant generic",
+      "problemMatcher": []
+    },
+    {
+      "label": "ReduceToken: Build Graph",
+      "type": "shell",
+      "command": "token-reduce build",
+      "problemMatcher": []
+    },
+    {
+      "label": "ReduceToken: Status",
+      "type": "shell",
+      "command": "token-reduce status",
+      "problemMatcher": []
+    }
+  ]
+}

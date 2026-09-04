@@ -1,0 +1,9 @@
+---
+description: Use Token Reduce context workflow before large codebase tasks
+globs:
+alwaysApply: false
+---
+Before deep edits, run:
+- token-reduce sync --worktree
+- token-reduce context --changed <paths>
+Then prioritize only the impacted files in context.

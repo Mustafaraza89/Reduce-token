@@ -26,6 +26,11 @@ class UseResult:
     sync_summary: dict[str, int]
     context_json_path: str
     prompt_md_path: str
+    estimated_tokens: int = 0
+    baseline_tokens: int = 0
+    token_reduction_pct: float = 0.0
+    caveman: str = "full"
+    caveman_savings_pct: float = 0.0
 
 
 def run_use_flow(
@@ -36,6 +41,8 @@ def run_use_flow(
     depth: int | None,
     max_files: int | None,
     out_dir: Path | None,
+    max_tokens: int | None = None,
+    caveman: str = "full",
 ) -> UseResult:
     graph_built = False
     if _tracked_count(analyzer) == 0:
@@ -45,13 +52,21 @@ def run_use_flow(
     changed = _resolve_changed(analyzer, changed_inputs)
     if not changed:
         raise ValueError(
-            "No changed files found. Pass --changed <files> or make sure git worktree has changes before running `token-reduce use`."
+            "No source files found to generate context. Make sure the project has supported source files."
         )
 
     sync_summary = analyzer.sync_files(changed)
     blast = analyzer.blast_radius(changed, max_depth=depth)
     changed_rel = _to_rel_paths(analyzer, changed)
-    pack = build_context_pack(config, analyzer.store, blast, changed_rel, max_files=max_files)
+    pack = build_context_pack(
+        config=config,
+        store=analyzer.store,
+        blast=blast,
+        changed=changed_rel,
+        max_files=max_files,
+        max_tokens=max_tokens,
+        caveman=caveman,
+    )
 
     output_root = out_dir if out_dir is not None else (Path(config.project_root) / ".token-reduce" / "assistant")
     output_root.mkdir(parents=True, exist_ok=True)
@@ -69,6 +84,11 @@ def run_use_flow(
         sync_summary=sync_summary,
         context_json_path=str(context_json_path),
         prompt_md_path=str(prompt_md_path),
+        estimated_tokens=pack.estimated_tokens,
+        baseline_tokens=pack.baseline_tokens,
+        token_reduction_pct=pack.token_reduction_pct,
+        caveman=caveman,
+        caveman_savings_pct=pack.caveman_savings_pct,
     )
 
 
@@ -93,7 +113,22 @@ def _resolve_changed(analyzer: Analyzer, changed_inputs: list[str]) -> list[Path
     if candidates:
         return candidates
 
-    return analyzer.changed_files_from_head()
+    head_candidates = analyzer.changed_files_from_head()
+    if head_candidates:
+        return head_candidates
+
+    # Fallback: in a clean repo, use the most recently modified source files (up to 3)
+    recent: list[tuple[float, Path]] = []
+    for p in analyzer.collect_source_files():
+        try:
+            recent.append((p.stat().st_mtime, p))
+        except OSError:
+            pass
+    recent.sort(key=lambda x: x[0], reverse=True)
+    if recent:
+        return [p for _, p in recent[:3]]
+
+    return []
 
 
 def _to_rel_paths(analyzer: Analyzer, changed: list[Path]) -> list[str]:

@@ -103,7 +103,7 @@ class GraphStore:
         for symbol in parse_result.symbols:
             self.conn.execute(
                 """
-                INSERT INTO symbols(symbol_id, path, name, kind, language, start_line, end_line, signature)
+                INSERT OR REPLACE INTO symbols(symbol_id, path, name, kind, language, start_line, end_line, signature)
                 VALUES(?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -157,12 +157,19 @@ class GraphStore:
                 continue
 
             matches = self.conn.execute(
-                "SELECT symbol_id FROM symbols WHERE name = ?",
+                "SELECT symbol_id, path FROM symbols WHERE name = ?",
                 (target_name,),
             ).fetchall()
             if not matches:
                 continue
-            for match in matches:
+            # Limit noisy cross-repo fan-out on common symbol names (e.g. get, run, close)
+            if len(matches) > 10:
+                same_file = [m for m in matches if m["path"] == path]
+                selected_matches = same_file if same_file else matches[:5]
+            else:
+                selected_matches = matches
+
+            for match in selected_matches:
                 self.conn.execute(
                     "INSERT INTO edges(src_id, dst_id, kind, path) VALUES (?, ?, ?, ?)",
                     (owner, match["symbol_id"], kind, path),
@@ -170,11 +177,13 @@ class GraphStore:
         self.conn.commit()
 
     def blast_radius(self, start_node_ids: Iterable[str], max_depth: int) -> list[tuple[str, int]]:
-        queue: list[tuple[str, int]] = [(node_id, 0) for node_id in start_node_ids]
+        from collections import deque
+
+        queue = deque((node_id, 0) for node_id in start_node_ids)
         visited: dict[str, int] = {node_id: 0 for node_id in start_node_ids}
 
         while queue:
-            node_id, depth = queue.pop(0)
+            node_id, depth = queue.popleft()
             if depth >= max_depth:
                 continue
             rows = self.conn.execute(
