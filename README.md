@@ -1,27 +1,33 @@
 # ⚡ ReduceToken
 
-> **Universal Token Optimization Framework for AI Coding Assistants**  
-> **Input Token Reduction (80% - 95%)** via AST Knowledge Graph & Blast Radius  
-> **Output Token Reduction (50% - 75%)** & **Thinking Monologue Override** via ReduceToken Direct Engine  
-> **Universal Slash Commands (`/`)** across Claude Code, Cursor, Gemini, Antigravity, VS Code, and Terminal CLI.
+> **Universal Token Optimization Framework for AI Coding Assistants**
+
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Tests: 16 Passing](https://img.shields.io/badge/tests-16%20passing-brightgreen.svg)]()
+
+**ReduceToken** is an open-source framework that dramatically reduces the number of tokens consumed by AI coding assistants. It works with **Claude Code, Cursor, Gemini, GitHub Copilot, VS Code, and any terminal CLI** — using a simple `/` slash command.
+
+- **Input Token Reduction: 80% – 95%** — via AST Knowledge Graph & Blast Radius Analysis
+- **Output Token Reduction: 50% – 75%** — via ReduceToken Direct Engine (silences AI monologue & filler)
 
 ---
 
-## 🎯 Ye Framework Kis Kaam Ka Hai? (Why You Need This)
+## 🤔 Why Do You Need This?
 
-Jab aap kisi AI assistant (**Gemini, Claude, ChatGPT, Cursor, Antigravity, Copilot**) se coding karate hain, do badi problems aati hain:
+When you use an AI assistant (Gemini, Claude, ChatGPT, Cursor, Copilot) for coding, two major problems cause token waste:
 
-### 1. Input Tokens Waste (Repo Bloat)
-Assistant poori repository ya 10-15 lambi files read karta hai. Result:
-- 10,000 se 50,000+ input tokens har prompt mein waste hote hain.
-- Context window jaldi bhar jati hai.
-- Model irrelevant code dekh kar confuse ho jata hai aur hallucinations create karta hai.
+### Problem 1 — Input Token Bloat
+The AI reads your entire repository or 10–15 large files at once:
+- Wastes **10,000–50,000+ input tokens** per prompt
+- Fills up the context window quickly
+- Causes the model to get confused by irrelevant code → hallucinations
 
-### 2. Output Tokens Waste (Thinking Monologue & Conversational Filler)
-Modern reasoning models (**Gemini Thinking, Claude 3.7 Thinking, OpenAI o1/o3**) lambe lambe internal monologues aur conversational sentences likhte hain:
-- *"Sure! I would be happy to help you with this task. Let's analyze the problem..."*
-- *"In summary, the changes we made are..."*
-- Result: Output tokens waste hote hain, generation speed bohot slow ho jati hai, aur developer ko code dhundne ke liye scroll karna padta hai.
+### Problem 2 — Output Token Waste (AI Monologue)
+Modern reasoning models (Gemini Thinking, Claude 3.7, OpenAI o1/o3) generate long internal monologues and conversational filler before giving you the actual answer:
+- *"Sure! I would be happy to help you with this task. Let's analyze the problem carefully..."*
+- *"In summary, the changes we made today include..."*
+- This wastes output tokens, slows generation speed, and forces you to scroll through noise to find the code.
 
 ---
 
@@ -36,149 +42,301 @@ Modern reasoning models (**Gemini Thinking, Claude 3.7 Thinking, OpenAI o1/o3**)
 │  • BFS Blast-Radius Calculation        • Zero conversational filler words   │
 │  • Line-Range Deduplication            • Instant direct code / diffs        │
 │  ⬇️                                    ⬇️                                   │
-│  SAVINGS: 80% - 95% INPUT TOKENS       SAVINGS: 50% - 75% OUTPUT TOKENS     │
+│  SAVINGS: 80% – 95% INPUT TOKENS       SAVINGS: 50% – 75% OUTPUT TOKENS     │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+**Engine 1** builds a static AST (Abstract Syntax Tree) graph of your codebase using SQLite. When you run ReduceToken, it computes only the "blast radius" — the minimal set of files and symbols actually impacted by your change — and feeds only those to the AI.
+
+**Engine 2** injects a system-level override directive into the AI prompt that forces the model to skip reasoning monologues, skip filler phrases, and deliver direct code or diffs immediately.
+
 ---
 
-## 🚀 1-Click Fast Installation (`install.sh`)
+## 🚀 Installation
 
-Is project mein poora automated **1-Click Installer** included hai jo Python check, `.venv` setup, package install, AST graph build, Git hooks aur sabhi AI slash commands ko 10 seconds mein configure kar deta hai:
+### Requirements
+
+- **Python 3.9 or higher** ([Download](https://www.python.org/downloads/))
+- **Git** ([Download](https://git-scm.com/downloads))
+- macOS / Linux / Windows (WSL recommended on Windows)
+
+---
+
+### Option A — 1-Click Installer (Recommended)
+
+**Step 1: Clone the repository**
 
 ```bash
-# Clone & run 1-click installer:
+git clone https://github.com/Mustafaraza89/Reduce-token.git
+cd Reduce-token
+```
+
+**Step 2: Run the installer**
+
+```bash
+chmod +x install.sh
 ./install.sh
 ```
 
-Installer automatically:
-1. Python 3.9+ verify karta hai.
-2. Virtual environment (`.venv`) banata aur activate karta hai.
-3. `token-reduce` ko install karta hai.
-4. AST graph index karta hai aur Git hooks install karta hai.
-5. Claude, Cursor, Gemini, Copilot aur VS Code ke liye `/` slash commands register karta hai.
-6. Convenient terminal alias (`tr` aur `tr/`) set karne ke instructions deta hai.
+The installer automatically:
+1. Checks that Python 3.9+ is installed
+2. Creates a Python virtual environment (`.venv`)
+3. Installs the `token-reduce` package and all dependencies
+4. Builds the AST knowledge graph index for your project
+5. Installs Git hooks for real-time incremental sync
+6. Registers `/reduce` and `/reducetoken` slash commands in Claude Code, Cursor, Gemini, Copilot, and VS Code
+7. Prints alias setup instructions for `tr` and `tr/` shortcuts
+
+**Step 3 (Optional): Add terminal aliases**
+
+After the installer finishes, add these lines to your shell config (`~/.zshrc` or `~/.bashrc`):
+
+```bash
+alias tr='token-reduce'
+alias 'tr/'='token-reduce /'
+```
+
+Then reload your shell:
+
+```bash
+source ~/.zshrc   # or source ~/.bashrc
+```
 
 ---
 
-## 🕹️ Universal Slash Command (`/`) System
+### Option B — Manual Installation
 
-Aap is framework ko apne favourite editor ya terminal mein direct `/` command se use kar sakte hain:
-
-### 1. Terminal / CLI (`/` Shortcut)
-Ek simple command se pura blast radius analyze hoga, thinking override apply hoga, prompt terminal me print hoga aur **seedhe clipboard me copy** ho jayega:
+**Step 1: Clone the repository**
 
 ```bash
-# Instant slash shortcut (auto-detects changes + copies prompt):
-token-reduce /
-
-# With query:
-token-reduce / --query "fix token leak in parser"
+git clone https://github.com/Mustafaraza89/Reduce-token.git
+cd Reduce-token
 ```
 
-*(Tip: Agar aapne alias banaya hai to sirf `tr /` type karein!)*
+**Step 2: Create and activate a virtual environment**
 
-### 2. Claude Code CLI
-Claude Code me slash commands automatically installed hain:
-- `/reduce` : Graph AST analyze karke minimal blast context load karega.
-- `/reducetoken` : Direct Mode enable karega (zero filler, instant code).
+```bash
+python3 -m venv .venv
 
-### 3. Cursor AI
-Cursor open karte hi `.cursor/rules/reduce-token.mdc` automatically background me apply rehta hai. Model automatically concise code aur zero conversational fluff deliver karta hai.
+# macOS / Linux:
+source .venv/bin/activate
 
-### 4. Gemini / Google Antigravity
-Workspace root par `GEMINI.md` configured hai jo Antigravity / Gemini model ko instructions deta hai ki direct blast radius context use kare aur reasoning monologue override kare.
+# Windows (WSL):
+source .venv/bin/activate
+```
 
-### 5. VS Code
-Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) -> **Run Task** -> **"ReduceToken: Direct Context"**.
+**Step 3: Install the package**
+
+```bash
+pip install -e .
+```
+
+**Step 4: Build the AST graph index**
+
+```bash
+token-reduce build
+```
+
+**Step 5: Install slash commands for your editors**
+
+```bash
+token-reduce setup
+```
+
+This creates:
+- `.claude/commands/reduce.md` and `.claude/commands/reducetoken.md` — Claude Code slash commands
+- `.cursor/rules/reduce-token.mdc` — Cursor AI rule
+- `GEMINI.md` — Gemini / Antigravity workspace rule
+- `.vscode/tasks.json` — VS Code task
+- `.github/copilot-instructions.md` — GitHub Copilot instructions
+
+---
+
+## 🕹️ How to Use
+
+### Universal Slash Command (Terminal)
+
+The fastest way to use ReduceToken — just run this in your terminal inside any project:
+
+```bash
+# Analyze blast radius, override AI thinking, copy prompt to clipboard:
+token-reduce /
+
+# With a specific query:
+token-reduce / --query "fix token leak in parser"
+
+# If you set up the alias:
+tr /
+```
+
+This command:
+1. Scans your git-changed files
+2. Computes the minimal blast radius (only impacted code)
+3. Injects the ReduceToken Direct Engine override directive
+4. Copies the final optimized prompt to your clipboard
+5. Prints token savings stats in the terminal
+
+---
+
+### Editor Integrations
+
+#### Claude Code
+
+Slash commands are automatically available after `token-reduce setup`:
+
+| Command | What It Does |
+|---|---|
+| `/reduce` | Loads minimal AST blast context for the current change |
+| `/reducetoken` | Enables Direct Mode — zero filler, instant code output |
+
+#### Cursor AI
+
+The `.cursor/rules/reduce-token.mdc` rule is automatically applied when you open the project in Cursor. The model will deliver concise, direct code with no conversational noise.
+
+#### Gemini / Google Antigravity
+
+The `GEMINI.md` file in the project root configures Gemini and Antigravity to use blast radius context and override the reasoning monologue automatically.
+
+#### VS Code
+
+Open the Command Palette (`Cmd+Shift+P` on Mac / `Ctrl+Shift+P` on Windows):
+→ **Run Task** → **"ReduceToken: Direct Context"**
+
+#### GitHub Copilot
+
+`.github/copilot-instructions.md` is automatically read by Copilot in VS Code to apply ReduceToken-style output instructions.
 
 ---
 
 ## 🥊 ReduceToken Direct Modes
 
-Aap `--caveman` (direct mode) flag se output brevity customize kar sakte hain:
+Control how aggressively the AI output is compressed:
 
-| Mode | Output Token Savings | AI Output Behaviour |
+| Mode | Output Token Savings | AI Behavior |
 |---|---|---|
-| `mild` | **~40% Savings** | **Concise Senior Engineer**: Code-first, zero pleasantries, 1-3 crisp bullet points. |
-| `full` *(default)* | **~65% Savings** | **ReduceToken Direct**: Telegraphic style, minimal words, direct code & diffs immediately. Monologue silenced. |
-| `raw` | **~75% Savings** | **Raw Machine**: Pure code/diff blocks only. 0% conversational English. |
-| `off` | 0% | Normal conversational output. |
+| `mild` | ~40% savings | Concise senior engineer style — code-first, no pleasantries, short bullet points |
+| `full` *(default)* | ~65% savings | Telegraphic style — minimal words, direct code & diffs, monologue silenced |
+| `raw` | ~75% savings | Pure machine — only code/diff blocks, zero conversational English |
+| `off` | 0% | Normal conversational AI output |
 
-### Example CLI Usage:
 ```bash
-# Run with full direct mode (default):
+# Default (full mode):
 token-reduce /
 
-# Run with Raw Machine (pure code only):
+# Raw mode (pure code only, maximum savings):
 token-reduce / --caveman raw
 
 # Enforce a strict input token budget (e.g. max 2000 tokens):
 token-reduce / --max-tokens 2000
+
+# Mild mode:
+token-reduce use --caveman mild --assistant gemini --copy --print
 ```
 
 ---
 
-## 📊 Live Token Savings Badge
+## 📊 Live Token Savings Report
 
-Har prompt ke top par real-time token reduction metrics generate hote hain jisse aapko live dikhta hai ki kitne tokens bache:
+Every prompt generated by ReduceToken includes a real-time savings badge at the top:
 
-```markdown
+```
 # ReduceToken Context Prompt (gemini)
 
-> ⚡ **ReduceToken Optimization Engine**:
-> - **Input Tokens**: ~1,240 tokens (saved 89.2% vs ~11,480 full candidate tokens)
-> - **Output Mode**: REDUCETOKEN DIRECT (estimated ~65% output tokens saved & thinking monologue overridden)
-
-## ⚡ ReduceToken Direct Engine
-[CRITICAL SYSTEM OVERRIDE - ZERO CONVERSATIONAL FILLER]
-1. DO NOT think out loud, monologue, or provide conversational preambles.
-2. DO NOT say "Sure!", "Certainly!", "I would be happy to help", "Here is the code", or "In summary".
-3. Jump DIRECTLY to the solution/code/diff with zero conversational padding.
-4. If code is needed, output ONLY the exact code changes or minimal diff.
-5. Save every output token possible: Deliver maximum signal with minimum tokens.
+> ⚡ ReduceToken Optimization Engine:
+> - Input Tokens: ~1,240 tokens (saved 89.2% vs ~11,480 full candidate tokens)
+> - Output Mode: REDUCETOKEN DIRECT (estimated ~65% output tokens saved & thinking monologue overridden)
 ```
 
 ---
 
-## 🛠️ Complete CLI Command Reference
+## 🛠️ Full CLI Reference
 
 | Command | Description |
 |---|---|
-| `./install.sh` | **1-Click Installer**: Full setup in 10 seconds. |
-| `token-reduce /` | **Universal Slash Command**: Context + Direct prompt copied to clipboard. |
-| `token-reduce use` | Daily command with options: `--assistant`, `--max-tokens`, `--copy`, `--print`, `--launch`. |
-| `token-reduce status` | Shows indexed files, symbols by language, call edges, and DB size. |
-| `token-reduce build` | Scans codebase and builds/updates graph cache. |
-| `token-reduce sync` | Incrementally syncs changed files (`--files`, `--worktree`, `--git-head`). |
-| `token-reduce blast` | Computes raw blast radius for files (`--changed <files> --depth 2`). |
-| `token-reduce context` | Generates impacted context pack in JSON or markdown. |
-| `token-reduce clean` | Cleans graph database and assistant cache (`--all`). |
-| `token-reduce watch` | Runs background watcher daemon for real-time indexing. |
+| `./install.sh` | **1-Click Installer** — Full setup in ~10 seconds |
+| `token-reduce /` | **Universal Slash Command** — Context + Direct prompt, copied to clipboard |
+| `token-reduce use` | Daily use command with full options (`--assistant`, `--max-tokens`, `--copy`, `--print`, `--launch`) |
+| `token-reduce build` | Scan codebase and build/update the AST graph index |
+| `token-reduce sync` | Incrementally sync only changed files (`--files`, `--worktree`, `--git-head`) |
+| `token-reduce blast` | Compute raw blast radius for specific files (`--changed <files> --depth 2`) |
+| `token-reduce context` | Generate impacted context pack in JSON or Markdown |
+| `token-reduce status` | Show indexed files, symbols by language, call edges, and DB size |
+| `token-reduce setup` | Install slash commands for all supported editors |
+| `token-reduce clean` | Clean graph database and assistant cache (`--all`) |
+| `token-reduce watch` | Run background watcher daemon for real-time incremental indexing |
 
 ---
 
 ## 💻 Supported Languages
 
-- **Python** (`.py`, `.ipynb` Jupyter Notebooks)
-- **TypeScript / JavaScript** (`.ts`, `.tsx`, `.js`, `.jsx` with relative import and `index` resolution)
-- **Go** (`.go`)
-- **Rust** (`.rs`)
-- **Java** (`.java`)
-- **C / C++** (`.c`, `.cpp`, `.h`)
-- **C#** (`.cs`), **Ruby** (`.rb`), **PHP** (`.php`), **Swift** (`.swift`), **Kotlin** (`.kt`)
+| Language | Extensions |
+|---|---|
+| Python | `.py`, `.ipynb` (Jupyter Notebooks) |
+| TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx` |
+| Go | `.go` |
+| Rust | `.rs` |
+| Java | `.java` |
+| C / C++ | `.c`, `.cpp`, `.h` |
+| C# | `.cs` |
+| Ruby | `.rb` |
+| PHP | `.php` |
+| Swift | `.swift` |
+| Kotlin | `.kt` |
 
 ---
 
-## 🧪 Verification & Testing
+## 🧪 Running Tests
 
-Is repo mein comprehensive unit test suite included hai jo blast radius, language parser, direct thinking overrides, slash commands aur token estimation verify karta hai:
+The repository includes a full unit test suite covering blast radius calculation, language parsers, Direct Engine directives, slash command installation, and token estimation:
 
 ```bash
+# Make sure your venv is active first:
+source .venv/bin/activate
+
+# Run all tests:
 python -m unittest discover -s tests -v
 ```
 
-16/16 tests pass seamlessly in < 0.1s!
+**All 16 tests pass in under 0.1 seconds.**
 
+---
 
+## 📁 Project Structure
 
+```
+Reduce-token/
+├── install.sh                      # 1-Click installer script
+├── GEMINI.md                       # Gemini / Antigravity workspace rule
+├── README.md                       # This file
+├── setup.py / pyproject.toml       # Package config
+├── token_reduce/
+│   ├── cli.py                      # Main CLI entry point (token-reduce command)
+│   ├── context_pack.py             # AST blast radius → markdown context builder
+│   ├── easy_mode.py                # High-level use flow (UseResult dataclass)
+│   ├── caveman.py                  # ReduceToken Direct Engine (output override)
+│   ├── slash_commands.py           # Editor slash command installer
+│   └── ...                        # Language parsers, graph engine, DB layer
+├── .claude/commands/
+│   ├── reduce.md                   # Claude Code /reduce command
+│   └── reducetoken.md              # Claude Code /reducetoken command
+├── .cursor/rules/
+│   └── reduce-token.mdc            # Cursor AI rule
+├── .github/
+│   └── copilot-instructions.md     # GitHub Copilot instructions
+├── .vscode/
+│   └── tasks.json                  # VS Code tasks
+└── tests/
+    └── test_token_reduce.py        # 16-test unit test suite
+```
+
+---
+
+## 🤝 Contributing
+
+Pull requests are welcome! Please open an issue first to discuss what you would like to change.
+
+---
+
+## 📄 License
+
+MIT License — free to use in personal and commercial projects.
