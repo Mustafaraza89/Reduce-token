@@ -13,9 +13,14 @@ from .caveman import CAVEMAN_CHOICES, estimate_output_savings_pct
 from .config import AppConfig, load_config, save_config
 from .context_pack import build_context_pack
 from .easy_mode import ASSISTANT_CHOICES, default_launch_command, read_prompt, run_use_flow
-from .gstack import GSTACK_SKILLS, install_gstack_integrations, run_gstack_flow
 from .installer import install_integrations
+from .specialists import (
+    SPECIALIST_ROLES,
+    install_all_specialist_slash_commands,
+    run_specialist_flow,
+)
 from .watcher import Watcher
+
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -81,19 +86,44 @@ def build_parser() -> argparse.ArgumentParser:
     status = sub.add_parser("status", help="Show graph metadata")
     status.add_argument("--json", action="store_true", help="Output machine-readable JSON")
 
-    gstack_parser = sub.add_parser("gstack", help="Run gstack sprint review/planning with ReduceToken token reduction")
-    gstack_parser.add_argument("--skill", choices=list(GSTACK_SKILLS.keys()), default="review", help="Target gstack skill persona (default: review)")
-    gstack_parser.add_argument("--assistant", choices=ASSISTANT_CHOICES, default="claude", help="Assistant format (default: claude)")
-    gstack_parser.add_argument("--changed", nargs="*", default=[], help="Optional changed files; if empty auto-detect from git")
-    gstack_parser.add_argument("--depth", type=int, default=None, help="Traversal depth")
-    gstack_parser.add_argument("--max-files", type=int, default=None, help="Limit impacted files")
-    gstack_parser.add_argument("--max-tokens", type=int, default=None, help="Limit context token budget")
-    gstack_parser.add_argument("--caveman", choices=CAVEMAN_CHOICES, default="full", help="ReduceToken direct mode level (default: full)")
-    gstack_parser.add_argument("--out-dir", type=Path, default=None, help="Output directory for context and prompt files")
-    gstack_parser.add_argument("--print", dest="print_prompt", action="store_true", help="Print generated prompt markdown to stdout")
-    gstack_parser.add_argument("--copy", dest="copy_prompt", action="store_true", help="Copy generated prompt markdown to clipboard")
-    gstack_parser.add_argument("--setup", action="store_true", help="Install gstack slash commands and integrations")
-    gstack_parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+    # Specialist role commands
+    def _add_specialist_args(p: argparse.ArgumentParser) -> None:
+        p.add_argument("--assistant", choices=ASSISTANT_CHOICES, default="claude", help="Assistant format (default: claude)")
+        p.add_argument("--changed", nargs="*", default=[], help="Optional changed files; if empty auto-detect from git")
+        p.add_argument("--depth", type=int, default=None, help="Traversal depth")
+        p.add_argument("--max-files", type=int, default=None, help="Limit impacted files")
+        p.add_argument("--max-tokens", type=int, default=None, help="Limit context token budget")
+        p.add_argument("--caveman", choices=CAVEMAN_CHOICES, default="full", help="ReduceToken direct mode level (default: full)")
+        p.add_argument("--out-dir", type=Path, default=None, help="Output directory for context and prompt files")
+        p.add_argument("--print", dest="print_prompt", action="store_true", help="Print generated prompt markdown to stdout")
+        p.add_argument("--copy", dest="copy_prompt", action="store_true", help="Copy generated prompt markdown to clipboard")
+        p.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+
+    specialist = sub.add_parser("specialist", help="Run role-specific specialist review on blast radius")
+    specialist.add_argument("--role", choices=list(SPECIALIST_ROLES.keys()), default="review", help="Specialist role (default: review)")
+    specialist.add_argument("--setup", action="store_true", help="Install specialist slash commands")
+    _add_specialist_args(specialist)
+
+    review_p = sub.add_parser("review", help="Staff Engineer code review on blast radius (/review)")
+    _add_specialist_args(review_p)
+
+    plan_p = sub.add_parser("plan", help="Eng Manager architecture gate on call graph (/plan)")
+    _add_specialist_args(plan_p)
+
+    sec_p = sub.add_parser("security", help="CSO threat model & auth audit on changed attack surface (/security)")
+    _add_specialist_args(sec_p)
+
+    qa_p = sub.add_parser("qa", help="QA Lead: verify edge cases and generate regression tests (/qa)")
+    _add_specialist_args(qa_p)
+
+    ship_p = sub.add_parser("ship", help="Release Engineer: pre-flight checks and PR notes (/ship)")
+    _add_specialist_args(ship_p)
+
+    debug_p = sub.add_parser("debug", help="Root cause debugger tracing AST call graph (/debug)")
+    _add_specialist_args(debug_p)
+
+    strat_p = sub.add_parser("strategy", help="Founder Strategy: 6 forcing questions to reframe scope (/strategy)")
+    _add_specialist_args(strat_p)
 
     return parser
 
@@ -106,13 +136,13 @@ def _load_cfg(root: Path) -> AppConfig:
 
 
 def _intercept_slash_commands(argv: list[str]) -> list[str]:
-    """Intercept slash command aliases like '/', '/reduce', '/reducetoken', '/gstack' and map to flows.
+    """Intercept slash command aliases like '/', '/reduce', '/review', '/plan', etc. and map to commands.
 
     Also handles edge cases:
     - Shell expanding '/' to the root directory path on some systems
     - Windows path separators
     - Bare 'r' or 'rt' as shorthand aliases
-    - gstack commands: /gstack, /gstack-reduce, /gstack-review, /gstack-plan
+    - Specialist roles: /review, /plan, /security, /qa, /ship, /debug, /strategy
     """
     if not argv:
         return argv
@@ -123,13 +153,25 @@ def _intercept_slash_commands(argv: list[str]) -> list[str]:
     if first in _slash_aliases:
         mode_lvl = "raw" if first in _raw_aliases else "full"
         return ["use", "--caveman", mode_lvl, "--copy", "--print"] + argv[1:]
-    if first in ("/gstack", "/gstack-reduce"):
-        return ["gstack", "--copy", "--print"] + argv[1:]
-    if first in ("/gstack-review",):
-        return ["gstack", "--skill", "review", "--copy", "--print"] + argv[1:]
-    if first in ("/gstack-plan",):
-        return ["gstack", "--skill", "plan-eng-review", "--copy", "--print"] + argv[1:]
+
+    # Dedicated slash commands
+    _role_cmd_map = {
+        "/review": "review",
+        "/plan": "plan",
+        "/security": "security",
+        "/cso": "security",
+        "/qa": "qa",
+        "/ship": "ship",
+        "/debug": "debug",
+        "/investigate": "debug",
+        "/strategy": "strategy",
+    }
+    if first in _role_cmd_map:
+        target_cmd = _role_cmd_map[first]
+        return [target_cmd, "--copy", "--print"] + argv[1:]
+
     return argv
+
 
 
 
@@ -178,14 +220,14 @@ def main(argv: list[str] | None = None) -> int:
             analyzer.close()
 
         install_result = install_integrations(cfg, start_watcher=not args.no_watch)
-        gstack_cmds = install_gstack_integrations(cfg.project_root)
+        specialist_cmds = install_all_specialist_slash_commands(cfg.project_root)
         payload = {
             "build": build_summary,
             "install": {
                 "configured_tools": install_result.configured_tools,
                 "hooks_installed": install_result.hooks_installed,
                 "watcher_started": install_result.watcher_started,
-                "gstack_commands": gstack_cmds,
+                "specialist_commands": specialist_cmds,
                 "notes": install_result.notes,
             },
         }
@@ -193,11 +235,10 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(payload, indent=2))
         else:
             import platform
-            global_claude = Path.home() / ".claude" / "commands"
             print()
-            print("=" * 60)
-            print("  ⚡ ReduceToken + gstack Setup Complete!")
-            print("=" * 60)
+            print("=" * 65)
+            print("  ⚡ ReduceToken Setup Complete!")
+            print("=" * 65)
             print(f"  Files indexed : {build_summary['tracked']}")
             print(f"  Processed     : {build_summary['processed']}")
             if install_result.configured_tools:
@@ -205,16 +246,25 @@ def main(argv: list[str] | None = None) -> int:
             if install_result.hooks_installed:
                 print(f"  Git hooks     : {', '.join(install_result.hooks_installed)}")
             print()
-            print("  Global Claude slash commands installed:")
-            print(f"    {global_claude / 'reduce.md'}  (/reduce)")
-            print(f"    {global_claude / 'reducetoken.md'}  (/reducetoken)")
-            print(f"    {global_claude / 'gstack-reduce.md'}  (/gstack-reduce)")
+            print("  Universal Slash Commands Installed Globally (~/.claude/commands/):")
+            print("    /reduce       - General Blast-Radius Context Optimizer")
+            print("    /reducetoken  - Direct Mode (zero monologue, instant code)")
+            print("    /review       - Staff Engineer Code Review on blast radius")
+            print("    /plan         - Engineering Manager Architecture Gate")
+            print("    /security     - CSO Threat Model & Security Audit")
+            print("    /qa           - QA Lead Regression & Edge Case Verification")
+            print("    /ship         - Release Engineer Pre-Flight & PR Summary")
+            print("    /debug        - Root Cause Debugger & Dependency Tracer")
+            print("    /strategy     - Founder Strategy & Scope Forcing Questions")
             print("  → Works in ALL projects across your machine!")
             print()
-            print("  Next steps:")
-            print("    1. Terminal: token-reduce /")
-            print("    2. gstack:   token-reduce gstack --skill review")
-            print("    3. Claude:   Type /reduce or /gstack-reduce in chat")
+            print("  CLI Quick Commands:")
+            print("    token-reduce /          (or 'tr /')")
+            print("    token-reduce review")
+            print("    token-reduce plan")
+            print("    token-reduce security")
+            print("    token-reduce qa")
+            print("    token-reduce ship")
 
             if platform.system() == "Windows":
                 import sysconfig
@@ -224,12 +274,13 @@ def main(argv: list[str] | None = None) -> int:
                 print("    If 'token-reduce' is not found, add this to your PATH:")
                 print(f"    {scripts_dir}")
                 print("    Then restart your terminal / PowerShell.")
-            print("=" * 60)
+            print("=" * 65)
             print()
             for note in install_result.notes:
                 print(f"note: {note}")
 
         return 0
+
 
 
     if args.command == "install":
@@ -469,22 +520,22 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"graph_db={payload['graph_db']}")
             return 0
 
-        if args.command == "gstack":
+        if args.command in ("specialist", "review", "plan", "security", "qa", "ship", "debug", "strategy"):
             if getattr(args, "setup", False):
-                installed_cmds = install_gstack_integrations(cfg.project_root)
+                installed_cmds = install_all_specialist_slash_commands(cfg.project_root)
                 if args.json:
-                    print(json.dumps({"gstack_installed": installed_cmds}, indent=2))
+                    print(json.dumps({"specialist_installed": installed_cmds}, indent=2))
                 else:
-                    print(f"gstack_setup_complete: installed {len(installed_cmds)} command(s): {', '.join(installed_cmds)}")
+                    print(f"setup_complete: installed {len(installed_cmds)} slash command(s): {', '.join(installed_cmds)}")
                 return 0
 
             caveman_lvl = getattr(args, "caveman", "full")
-            skill = getattr(args, "skill", "review")
+            role = args.command if args.command != "specialist" else getattr(args, "role", "review")
             try:
-                gstack_res = run_gstack_flow(
+                spec_res = run_specialist_flow(
                     config=cfg,
                     analyzer=analyzer,
-                    skill=skill,
+                    role=role,
                     assistant=args.assistant,
                     changed_inputs=args.changed,
                     depth=args.depth,
@@ -497,48 +548,50 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"error: {err}", file=sys.stderr)
                 return 2
 
-            prompt_text = Path(gstack_res.prompt_md_path).read_text(encoding="utf-8")
+            prompt_text = Path(spec_res.prompt_md_path).read_text(encoding="utf-8")
             copied = False
             if getattr(args, "copy_prompt", False):
                 copied = _copy_to_clipboard(prompt_text)
 
             payload = {
-                "framework": "gstack+ReduceToken",
-                "skill": gstack_res.skill,
-                "role": gstack_res.role,
+                "framework": "ReduceToken",
+                "role": spec_res.role_key,
+                "title": spec_res.title,
+                "command": spec_res.command,
                 "assistant": args.assistant,
-                "changed": gstack_res.changed,
-                "impacted_count": gstack_res.impacted_count,
-                "estimated_tokens": gstack_res.estimated_tokens,
-                "baseline_tokens": gstack_res.baseline_tokens,
-                "token_reduction_pct": gstack_res.token_reduction_pct,
-                "direct_mode": gstack_res.caveman,
-                "estimated_output_savings_pct": gstack_res.caveman_savings_pct,
-                "context_json": gstack_res.context_json_path,
-                "prompt_md": gstack_res.prompt_md_path,
+                "changed": spec_res.changed,
+                "impacted_count": spec_res.impacted_count,
+                "estimated_tokens": spec_res.estimated_tokens,
+                "baseline_tokens": spec_res.baseline_tokens,
+                "token_reduction_pct": spec_res.token_reduction_pct,
+                "direct_mode": spec_res.caveman,
+                "estimated_output_savings_pct": spec_res.caveman_savings_pct,
+                "context_json": spec_res.context_json_path,
+                "prompt_md": spec_res.prompt_md_path,
                 "clipboard_copied": copied,
             }
 
             if args.json:
                 print(json.dumps(payload, indent=2))
             else:
-                print(f"mode=gstack+ReduceToken skill=/{gstack_res.skill} role=\"{gstack_res.role}\"")
-                print(f"changed={','.join(gstack_res.changed) or 'none'}")
+                print(f"mode=ReduceToken role=\"{spec_res.title}\" command={spec_res.command}")
+                print(f"changed={','.join(spec_res.changed) or 'none'}")
                 print(
-                    f"tokens_input=~{gstack_res.estimated_tokens:,} "
-                    f"baseline=~{gstack_res.baseline_tokens:,} "
-                    f"saved={gstack_res.token_reduction_pct:.1f}%"
+                    f"tokens_input=~{spec_res.estimated_tokens:,} "
+                    f"baseline=~{spec_res.baseline_tokens:,} "
+                    f"saved={spec_res.token_reduction_pct:.1f}%"
                 )
                 print(
-                    f"reducetoken_mode=DIRECT (est_output_saved=~{gstack_res.caveman_savings_pct:.0f}% + thinking_overridden)"
+                    f"reducetoken_mode=DIRECT (est_output_saved=~{spec_res.caveman_savings_pct:.0f}% + thinking_overridden)"
                 )
-                print(f"prompt_md={gstack_res.prompt_md_path}")
+                print(f"prompt_md={spec_res.prompt_md_path}")
                 if copied:
-                    print("clipboard=copied gstack+ReduceToken prompt to system clipboard!")
+                    print(f"clipboard=copied {spec_res.command} prompt to system clipboard!")
                 if getattr(args, "print_prompt", False):
                     print("")
                     print(prompt_text)
             return 0
+
 
         if args.command == "watch":
             watcher = Watcher(cfg)

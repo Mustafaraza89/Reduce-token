@@ -1,17 +1,16 @@
 # ⚡ ReduceToken
 
-> **Universal Token Optimization Framework for AI Coding Assistants & gstack Workflows**
+> **Universal Token Optimization Framework & Specialist Squad for AI Coding Assistants**
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests: 18 Passing](https://img.shields.io/badge/tests-18%20passing-brightgreen.svg)]()
-[![gstack Ready](https://img.shields.io/badge/gstack-integrated-purple.svg)](https://github.com/garrytan/gstack)
 
-**ReduceToken** dramatically reduces the tokens consumed by AI coding assistants. Works out-of-the-box with **Claude Code, Cursor, Gemini, GitHub Copilot, VS Code, and Garry Tan's gstack framework** via simple slash commands.
+**ReduceToken** dramatically cuts the tokens consumed by AI coding assistants while turning your AI into a full virtual engineering team. Works out-of-the-box with **Claude Code, Cursor, Gemini, GitHub Copilot, VS Code, and any terminal** via universal slash commands.
 
 - **Input Token Reduction: 80% – 95%** — via AST Knowledge Graph & Blast Radius Analysis
 - **Output Token Reduction: 50% – 75%** — via ReduceToken Direct Engine (silences AI monologue & filler)
-- **gstack Framework Synergy** — pre-flight token optimizer for `/plan-eng-review`, `/review`, `/cso`, `/qa`, and `/ship`
+- **Role-Based Engineering Squad** — dedicated slash commands for Review, Planning, Security, QA, and Shipping
 
 ---
 
@@ -29,7 +28,7 @@ Then run setup inside your project folder:
 token-reduce setup
 ```
 
-**Done.** All slash commands (`/reduce`, `/reducetoken`, `/gstack-reduce`) are installed **globally** in `~/.claude/commands/` and work across every project on your machine.
+**Done.** All slash commands are installed **globally** in `~/.claude/commands/` and work in every project across your machine.
 
 > **Windows users:** If `token-reduce` is not found after install, see the [Windows section](#windows) below.
 
@@ -53,56 +52,46 @@ Paste the clipboard output directly into Claude, Cursor, Gemini, or ChatGPT.
 
 ---
 
-## 🤝 ReduceToken + gstack Integration
+## 👥 ReduceToken Specialist Squad (Role-Based Slash Commands)
 
-[gstack](https://github.com/garrytan/gstack) is Garry Tan's virtual software engineering team framework for Claude Code (23 specialists including CEO, Eng Manager, Staff Reviewer, CSO, and QA). 
+ReduceToken equips your AI assistant with specialized engineering roles that each run on the exact blast radius of your code change:
 
-Running gstack on mid-to-large repositories often burns **tens of thousands of tokens** because reviews inspect broad files and agents produce long reasoning monologues.
+| Slash Command | Role | What It Does |
+|---|---|---|
+| **`/review`** | **Staff Engineer** | Audits race conditions, regressions, and incomplete error paths. Direct code diffs. |
+| **`/plan`** | **Engineering Manager** | Locks call-graph data flow, state machines, and test matrix before coding. |
+| **`/security`** | **Chief Security Officer (CSO)** | OWASP Top 10 + STRIDE threat model on the modified attack surface. |
+| **`/qa`** | **QA Lead** | Generates atomic regression tests and verifies edge cases on modified symbols. |
+| **`/ship`** | **Release Engineer** | Runs pre-flight checks, verifies test coverage delta, and drafts concise PR notes. |
+| **`/debug`** | **Root Cause Debugger** | Traces caller-callee call paths through the AST graph. Zero speculative fixes. |
+| **`/strategy`** | **Founder Strategy** | 6 forcing questions to challenge premises and scope the narrowest wedge to ship. |
+| **`/reduce`** | **Context Optimizer** | Universal blast-radius context builder for any task. |
+| **`/reducetoken`** | **Direct Mode** | Instant code/diffs, zero conversational filler, suppresses thinking preambles. |
 
-**ReduceToken supercharges gstack by solving both problems:**
+### CLI Equivalents
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    REDUCETOKEN + GSTACK SYNERGY                             │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  gstack Specialist Personas          ReduceToken Dual-Engine                │
-│  • /plan-eng-review (Architecture)  ──▶ AST Blast Radius (Only impacted)    │
-│  • /review (Staff Bug Hunter)       ──▶ Call-graph caller/callee tracing    │
-│  • /cso (Security Threat Model)     ──▶ Scoped attack surface analysis      │
-│  • /ship (Release Engineer)         ──▶ Minimal diffs + direct brevity      │
-│  ⬇️                                     ⬇️                                   │
-│  Full Engineering Team Rigor        Cuts 80-95% Input + 50-75% Output Tokens│
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Using gstack with ReduceToken
+You can run any specialist workflow directly from the terminal:
 
 ```bash
-# Run Staff Engineer review with minimal blast-radius:
-token-reduce gstack --skill review
-
-# Run Architecture Eng-Manager planning:
-token-reduce gstack --skill plan-eng-review
-
-# Run Security CSO audit on changed surface:
-token-reduce gstack --skill cso
-
-# Or use the slash command directly in Claude Code:
-/gstack-reduce
+token-reduce review       # Staff Engineer review on changed files
+token-reduce plan         # Architecture planning gate
+token-reduce security     # CSO security audit on attack surface
+token-reduce qa           # QA regression test generator
+token-reduce ship         # Release PR preparation
+token-reduce debug        # Root cause AST tracer
+token-reduce strategy     # Product strategy session
 ```
-
-Supported gstack personas: `office-hours`, `plan-ceo-review`, `plan-eng-review`, `review`, `investigate`, `cso`, `qa`, `ship`, `autoplan`.
 
 ---
 
 ## 🤔 Why Do You Need This?
 
-When you use AI for coding, two problems waste your tokens:
+When you use AI for coding, two critical problems burn your token budget:
 
 ### Problem 1 — Input Token Bloat
 The AI reads your entire repo or 10–15 large files:
 - Wastes **10,000–50,000+ input tokens** per prompt
-- Fills the context window → model gets confused → hallucinations
+- Fills the context window → model loses focus → hallucinations
 
 ### Problem 2 — Output Token Waste (AI Monologue)
 Models like Gemini Thinking, Claude 3.7, and OpenAI o1 generate long filler before answering:
@@ -192,7 +181,7 @@ token-reduce /
 
 ---
 
-## 🕹️ How to Use
+## 🕹️ Daily Workflow
 
 ### Main Commands
 
@@ -200,28 +189,21 @@ token-reduce /
 # Builds blast radius context + injects Direct Engine override + copies to clipboard:
 token-reduce /
 
-# Run gstack review with blast-radius optimization:
-token-reduce gstack --skill review
+# Staff Engineer review on current changes:
+token-reduce review
+
+# Eng Manager architecture gate:
+token-reduce plan
 
 # Full form with custom parameters:
 token-reduce use --caveman full --copy --print
 ```
 
-### Slash Commands in Claude Code
-
-Run `token-reduce setup` once and these are globally available:
-
-| Command | What It Does |
-|---|---|
-| `/reduce` | Runs ReduceToken context optimizer for current changes |
-| `/reducetoken` | Activates Direct Mode — zero filler, instant code output |
-| `/gstack-reduce` | Optimizes gstack sprint skills (`/review`, `/ship`, `/plan-eng-review`) |
-
 ### Editor Integrations
 
 | Editor | How It Works |
 |---|---|
-| **Claude Code** | Global slash commands in `~/.claude/commands/` |
+| **Claude Code** | Global slash commands in `~/.claude/commands/` (`/review`, `/plan`, `/reduce`, etc.) |
 | **Cursor AI** | `.cursor/rules/reduce-token.mdc` auto-applied |
 | **Gemini / Antigravity** | `GEMINI.md` workspace rule auto-loaded |
 | **VS Code** | Command Palette → Run Task → "ReduceToken: Direct Context" |
@@ -240,7 +222,7 @@ Run `token-reduce setup` once and these are globally available:
 
 ```bash
 token-reduce /                                    # full mode (default)
-token-reduce gstack --skill review --caveman raw  # gstack in raw mode
+token-reduce review --caveman raw                 # review in raw mode
 token-reduce use --max-tokens 2000 --copy --print # strict token budget
 ```
 
@@ -251,11 +233,11 @@ token-reduce use --max-tokens 2000 --copy --print # strict token budget
 Every run shows real-time savings in the terminal and at the top of the prompt:
 
 ```
-mode=gstack+ReduceToken skill=/review role="Staff Engineer / Production Bug Hunter"
+mode=ReduceToken role="Staff Engineer Code Reviewer" command=/review
 changed=src/auth.py,src/utils.py
 tokens_input=~1,240  baseline=~11,480  saved=89.2%
 reducetoken_mode=DIRECT (est_output_saved=~65% + thinking_overridden)
-clipboard=copied gstack+ReduceToken prompt to system clipboard!
+clipboard=copied /review prompt to system clipboard!
 ```
 
 ---
@@ -265,7 +247,13 @@ clipboard=copied gstack+ReduceToken prompt to system clipboard!
 | Command | Description |
 |---|---|
 | `token-reduce /` | Main command — blast radius + Direct Engine prompt, copied to clipboard |
-| `token-reduce gstack` | Run gstack sprint review/planning with token reduction (`--skill <name>`) |
+| `token-reduce review` | Staff Engineer code review on blast radius |
+| `token-reduce plan` | Engineering Manager architecture & call-graph planning gate |
+| `token-reduce security` | CSO threat model & auth audit on changed attack surface |
+| `token-reduce qa` | QA Lead regression tests & edge case verification |
+| `token-reduce ship` | Release Engineer pre-flight checks and PR notes |
+| `token-reduce debug` | Root cause debugger tracing AST callers |
+| `token-reduce strategy` | Founder Strategy session with 6 forcing questions |
 | `token-reduce setup` | One-time setup: build graph + install editor integrations + git hooks |
 | `token-reduce use` | Daily command with full flag control (`--caveman`, `--max-tokens`, `--copy`, `--print`) |
 | `token-reduce build` | Scan codebase and build/update AST graph index |
@@ -290,7 +278,7 @@ Python, TypeScript, JavaScript, Go, Rust, Java, C, C++, C#, Ruby, PHP, Swift, Ko
 python -m unittest discover -s tests -v
 ```
 
-**All 18 tests pass in under 0.1 seconds.**
+**All 18 tests pass in under 0.15 seconds.**
 
 ---
 
@@ -305,10 +293,10 @@ Reduce-token/
 │   ├── cli.py                      # CLI entry point (token-reduce command)
 │   ├── context_pack.py             # Blast radius → context builder
 │   ├── caveman.py                  # ReduceToken Direct Engine (output override)
-│   ├── gstack.py                   # gstack framework integration module
+│   ├── specialists.py              # Specialist squad roles (Review, Plan, CSO, QA, Ship)
 │   ├── slash_commands.py           # Editor integration installer
 │   └── ...                        # Language parsers, graph engine, DB layer
-├── .claude/commands/               # Claude Code slash commands (/reduce, /reducetoken, /gstack-reduce)
+├── .claude/commands/               # Global Claude slash commands (/review, /plan, /security, /qa, /ship, /debug, /strategy, /reduce, /reducetoken)
 ├── .cursor/rules/                  # Cursor AI rule
 ├── .github/copilot-instructions.md # Copilot instructions
 ├── .vscode/tasks.json              # VS Code tasks

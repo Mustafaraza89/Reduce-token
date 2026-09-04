@@ -63,24 +63,35 @@ def _install_claude_commands(root: Path) -> list[str]:
             # Graceful fallback: global install failed (sandbox / no home dir access)
             pass
 
-    return ["/reduce", "/reducetoken", "/gstack-reduce"]
+    return [
+        "/reduce",
+        "/reducetoken",
+        "/plan",
+        "/review",
+        "/security",
+        "/qa",
+        "/ship",
+        "/debug",
+        "/strategy",
+    ]
 
 
 def _write_claude_commands(cmd_dir: Path) -> None:
     cmd_dir.mkdir(parents=True, exist_ok=True)
 
-    # Remove old caveman.md if present
-    old_caveman = cmd_dir / "caveman.md"
-    if old_caveman.exists():
-        try:
-            old_caveman.unlink()
-        except OSError:
-            pass
+    # Clean up obsolete commands
+    for old_name in ("caveman.md", "gstack-reduce.md", "gstack-review.md", "gstack-plan.md"):
+        old_file = cmd_dir / old_name
+        if old_file.exists():
+            try:
+                old_file.unlink()
+            except OSError:
+                pass
 
     reduce_cmd = cmd_dir / "reduce.md"
     reduce_cmd.write_text(
         """---
-description: /reduce - Run ReduceToken context optimizer before broad code changes
+description: /reduce - Universal ReduceToken context optimizer before broad code changes
 ---
 Execute `/reduce` workflow:
 Run `token-reduce use --caveman full --copy --print` to generate blast-radius context.
@@ -102,18 +113,94 @@ Execute `/reducetoken` mode:
         encoding="utf-8",
     )
 
-    gstack_cmd = cmd_dir / "gstack-reduce.md"
-    gstack_cmd.write_text(
+    review_cmd = cmd_dir / "review.md"
+    review_cmd.write_text(
         """---
-description: /gstack-reduce - Optimize gstack sprint skills (/plan-eng-review, /review, /ship) with ReduceToken blast radius
+description: /review - Staff Engineer code review: find race conditions & production bugs on blast radius
 ---
-Execute gstack workflow with ReduceToken optimization:
-1. Run `token-reduce gstack --skill review --copy --print` to generate blast radius for the active change.
-2. In gstack skills (/plan-eng-review, /review, /cso, /ship, /investigate), analyze ONLY the impacted context.
-3. Apply ReduceToken Direct rules: zero pleasantries, direct diffs, maximum tokens saved.
+Execute Staff Engineer review:
+1. Run `token-reduce review --copy --print` to generate blast radius for current changes.
+2. Audit race conditions, edge-case regressions, and missing error handling strictly on impacted files.
+3. Output direct code fixes and minimal diffs with zero conversational filler.
 """.strip() + "\n",
         encoding="utf-8",
     )
+
+    plan_cmd = cmd_dir / "plan.md"
+    plan_cmd.write_text(
+        """---
+description: /plan - Engineering Manager architecture gate: lock call graph & failure modes
+---
+Execute Architecture & Planning gate:
+1. Run `token-reduce plan --copy --print` to generate call-graph dependencies.
+2. Lock data flow, error paths, state machines, and test matrix before modifying code.
+3. Save maximum tokens by reviewing only caller-callee blast radius.
+""".strip() + "\n",
+        encoding="utf-8",
+    )
+
+    security_cmd = cmd_dir / "security.md"
+    security_cmd.write_text(
+        """---
+description: /security - CSO threat model: OWASP + injection + auth audit on changed attack surface
+---
+Execute CSO Security audit:
+1. Run `token-reduce security --copy --print` to inspect the modified attack surface.
+2. Audit injection risks, privilege escalation, authentication checks, and secrets.
+3. Provide concrete exploit scenarios and direct patch diffs.
+""".strip() + "\n",
+        encoding="utf-8",
+    )
+
+    qa_cmd = cmd_dir / "qa.md"
+    qa_cmd.write_text(
+        """---
+description: /qa - QA Lead: generate regression tests and verify edge cases on modified symbols
+---
+Execute QA verification:
+1. Run `token-reduce qa --copy --print`.
+2. Write atomic regression tests for all modified symbols.
+3. Verify edge cases and failure modes with minimal test code.
+""".strip() + "\n",
+        encoding="utf-8",
+    )
+
+    ship_cmd = cmd_dir / "ship.md"
+    ship_cmd.write_text(
+        """---
+description: /ship - Release Engineer: pre-flight checks, test verification, and PR summary
+---
+Execute Release Engineer workflow:
+1. Run `token-reduce ship --copy --print`.
+2. Run all automated tests, verify test delta, and draft concise release PR notes.
+""".strip() + "\n",
+        encoding="utf-8",
+    )
+
+    debug_cmd = cmd_dir / "debug.md"
+    debug_cmd.write_text(
+        """---
+description: /debug - Root Cause Debugger: trace data flow & callers through AST graph
+---
+Execute Root Cause debugging:
+1. Run `token-reduce debug --copy --print`.
+2. Trace caller-callee call paths through the AST graph. Zero speculative fixes without verified root cause.
+""".strip() + "\n",
+        encoding="utf-8",
+    )
+
+    strategy_cmd = cmd_dir / "strategy.md"
+    strategy_cmd.write_text(
+        """---
+description: /strategy - Founder Strategy: 6 forcing questions to reframe scope before code
+---
+Execute Founder Strategy session:
+1. Run `token-reduce strategy --copy --print`.
+2. Challenge premises, reframe the product, and recommend the narrowest wedge to ship.
+""".strip() + "\n",
+        encoding="utf-8",
+    )
+
 
 
 

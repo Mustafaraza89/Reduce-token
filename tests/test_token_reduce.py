@@ -294,16 +294,29 @@ class TokenReduceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             installed = install_all_slash_commands(root)
-            self.assertEqual(installed.claude_commands, ["/reduce", "/reducetoken", "/gstack-reduce"])
+            expected_cmds = [
+
+                "/reduce",
+                "/reducetoken",
+                "/plan",
+                "/review",
+                "/security",
+                "/qa",
+                "/ship",
+                "/debug",
+                "/strategy",
+            ]
+            self.assertEqual(installed.claude_commands, expected_cmds)
             self.assertEqual(len(installed.cursor_rules), 1)
             self.assertTrue(installed.gemini_configured)
             self.assertTrue(installed.vscode_configured)
             self.assertTrue(installed.copilot_configured)
 
-            # Local project install writes to root/.claude/commands/
-            self.assertTrue((root / ".claude" / "commands" / "reduce.md").exists())
-            self.assertTrue((root / ".claude" / "commands" / "reducetoken.md").exists())
-            self.assertTrue((root / ".claude" / "commands" / "gstack-reduce.md").exists())
+            # Local project install writes all role commands to root/.claude/commands/
+            for cmd_name in ("reduce", "reducetoken", "plan", "review", "security", "qa", "ship", "debug", "strategy"):
+                cmd_path = root / ".claude" / "commands" / f"{cmd_name}.md"
+                self.assertTrue(cmd_path.exists(), f"Missing {cmd_path}")
+
             claude_reduce = (root / ".claude" / "commands" / "reduce.md").read_text(encoding="utf-8")
             self.assertIn("/reduce", claude_reduce)
             self.assertIn("token-reduce", claude_reduce)
@@ -335,28 +348,24 @@ class TokenReduceTests(unittest.TestCase):
         self.assertIn("--caveman", args_reduce_tok)
         self.assertIn("full", args_reduce_tok)
 
-        # Test '/reduce'
-        args_reduce = _intercept_slash_commands(["/reduce", "--query", "auth"])
-        self.assertEqual(args_reduce[0], "use")
-        self.assertIn("--query", args_reduce)
-        self.assertIn("auth", args_reduce)
-
-        # Test gstack slash commands
-        args_gstack = _intercept_slash_commands(["/gstack"])
-        self.assertEqual(args_gstack[0], "gstack")
-        self.assertIn("--copy", args_gstack)
-
-        args_gstack_review = _intercept_slash_commands(["/gstack-review"])
-        self.assertEqual(args_gstack_review[0], "gstack")
-        self.assertIn("review", args_gstack_review)
-
-        args_gstack_plan = _intercept_slash_commands(["/gstack-plan"])
-        self.assertEqual(args_gstack_plan[0], "gstack")
-        self.assertIn("plan-eng-review", args_gstack_plan)
+        # Test role slash commands
+        for slash_cmd, expected_subcmd in (
+            ("/review", "review"),
+            ("/plan", "plan"),
+            ("/security", "security"),
+            ("/qa", "qa"),
+            ("/ship", "ship"),
+            ("/debug", "debug"),
+            ("/strategy", "strategy"),
+        ):
+            args_role = _intercept_slash_commands([slash_cmd])
+            self.assertEqual(args_role[0], expected_subcmd)
+            self.assertIn("--copy", args_role)
+            self.assertIn("--print", args_role)
 
         # Test regular command passes through untouched
-        args_normal = _intercept_slash_commands(["stats", "--json"])
-        self.assertEqual(args_normal, ["stats", "--json"])
+        args_normal = _intercept_slash_commands(["status", "--json"])
+        self.assertEqual(args_normal, ["status", "--json"])
 
     def test_use_flow_with_caveman_mode(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -387,8 +396,8 @@ class TokenReduceTests(unittest.TestCase):
             finally:
                 analyzer.close()
 
-    def test_gstack_flow_and_prompt_generation(self) -> None:
-        from token_reduce.gstack import run_gstack_flow
+    def test_specialist_flow_and_prompt_generation(self) -> None:
+        from token_reduce.specialists import run_specialist_flow
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "auth.py").write_text(
@@ -400,37 +409,38 @@ class TokenReduceTests(unittest.TestCase):
             analyzer = Analyzer(cfg)
             try:
                 analyzer.build_graph()
-                res = run_gstack_flow(
+                res = run_specialist_flow(
                     config=cfg,
                     analyzer=analyzer,
-                    skill="review",
+                    role="review",
                     assistant="claude",
                     changed_inputs=["auth.py"],
                     caveman="full",
                 )
-                self.assertEqual(res.skill, "review")
-                self.assertIn("Staff Engineer", res.role)
+                self.assertEqual(res.role_key, "review")
+                self.assertIn("Staff Engineer", res.title)
                 self.assertIn("auth.py", res.changed)
 
                 prompt_text = Path(res.prompt_md_path).read_text(encoding="utf-8")
-                self.assertIn("ReduceToken + gstack Engine", prompt_text)
-                self.assertIn("Staff Engineer / Production Bug Hunter", prompt_text)
+                self.assertIn("ReduceToken Specialist Prompt", prompt_text)
+                self.assertIn("Staff Engineer Code Reviewer", prompt_text)
                 self.assertIn("CRITICAL SYSTEM OVERRIDE", prompt_text)
                 self.assertIn("Impacted Codebase Context (AST Blast Radius)", prompt_text)
             finally:
                 analyzer.close()
 
-    def test_gstack_cli_execution(self) -> None:
+    def test_specialist_cli_execution(self) -> None:
         from token_reduce.cli import main
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "app.py").write_text("def start():\n    pass\n", encoding="utf-8")
-            ret = main(["--project-root", str(root), "gstack", "--skill", "plan-eng-review", "--json"])
-            self.assertEqual(ret, 0)
-
+            for subcmd in ("review", "plan", "security"):
+                ret = main(["--project-root", str(root), subcmd, "--json"])
+                self.assertEqual(ret, 0, f"Command {subcmd} failed")
 
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

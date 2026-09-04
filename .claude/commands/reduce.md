@@ -1,5 +1,5 @@
 ---
-description: /reduce - Run ReduceToken context optimizer before broad code changes
+description: /reduce - Universal ReduceToken context optimizer before broad code changes
 ---
 Execute `/reduce` workflow:
 Run `token-reduce use --caveman full --copy --print` to generate blast-radius context.
