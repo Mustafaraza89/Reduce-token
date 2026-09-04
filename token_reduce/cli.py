@@ -168,6 +168,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(payload, indent=2))
         else:
             import platform
+            global_claude = Path.home() / ".claude" / "commands"
             print()
             print("=" * 60)
             print("  ⚡ ReduceToken Setup Complete!")
@@ -179,9 +180,15 @@ def main(argv: list[str] | None = None) -> int:
             if install_result.hooks_installed:
                 print(f"  Git hooks     : {', '.join(install_result.hooks_installed)}")
             print()
+            print("  Global Claude slash commands installed:")
+            print(f"    {global_claude / 'reduce.md'}")
+            print(f"    {global_claude / 'reducetoken.md'}")
+            print("  → /reduce and /reducetoken now work in ALL projects!")
+            print()
             print("  Next steps:")
-            print("    1. Run inside any project:  token-reduce /")
-            print("    2. Paste the clipboard output into Claude, Gemini, or Cursor.")
+            print("    1. Open Claude Code in any project")
+            print("    2. Type /reduce or /reducetoken — done!")
+            print("    3. Or in terminal: token-reduce /")
             if platform.system() == "Windows":
                 import sysconfig
                 scripts_dir = sysconfig.get_path("scripts")
@@ -194,6 +201,7 @@ def main(argv: list[str] | None = None) -> int:
             print()
             for note in install_result.notes:
                 print(f"note: {note}")
+
         return 0
 
 

@@ -75,8 +75,10 @@ else
 fi
 
 # 4. Run Setup & Indexing
-echo -e "\n${MAGENTA}▶ [4/5] Initializing AST Knowledge Graph & Slash Commands...${RESET}"
+echo -e "\n${MAGENTA}▶ [4/5] Installing global slash commands & editor integrations...${RESET}"
 token-reduce setup --no-watch
+echo -e "${GREEN}✓ /reduce and /reducetoken installed globally in ~/.claude/commands/${RESET}"
+
 
 # 5. Shell Alias Recommendations
 echo -e "\n${MAGENTA}▶ [5/5] Configuring Shell Integrations & Aliases...${RESET}"

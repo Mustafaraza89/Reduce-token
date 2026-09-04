@@ -300,7 +300,7 @@ class TokenReduceTests(unittest.TestCase):
             self.assertTrue(installed.vscode_configured)
             self.assertTrue(installed.copilot_configured)
 
-            # Check Claude commands
+            # Local project install writes to root/.claude/commands/
             self.assertTrue((root / ".claude" / "commands" / "reduce.md").exists())
             self.assertTrue((root / ".claude" / "commands" / "reducetoken.md").exists())
             claude_reduce = (root / ".claude" / "commands" / "reduce.md").read_text(encoding="utf-8")
@@ -318,6 +318,7 @@ class TokenReduceTests(unittest.TestCase):
             gemini_file = root / "GEMINI.md"
             self.assertTrue(gemini_file.exists())
             self.assertIn("ReduceToken Mode", gemini_file.read_text(encoding="utf-8"))
+
 
     def test_cli_slash_command_interception(self) -> None:
         from token_reduce.cli import _intercept_slash_commands

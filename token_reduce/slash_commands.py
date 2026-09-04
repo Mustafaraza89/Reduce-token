@@ -45,8 +45,31 @@ def install_all_slash_commands(root: Path) -> SlashCommandInstallResult:
 
 
 def _install_claude_commands(root: Path) -> list[str]:
-    cmd_dir = root / ".claude" / "commands"
+    """Install Claude slash commands into both project-local AND global ~/.claude/commands/.
+
+    Global install makes /reduce and /reducetoken available in ALL projects on the machine.
+    Local install is a fallback for environments that only look in the project dir.
+    """
+    # Always install locally in the project dir
+    local_cmd_dir = root / ".claude" / "commands"
+    _write_claude_commands(local_cmd_dir)
+
+    # Try global install into ~/.claude/commands/ (works in every project)
+    global_cmd_dir = Path.home() / ".claude" / "commands"
+    if global_cmd_dir != local_cmd_dir:
+        try:
+            _write_claude_commands(global_cmd_dir)
+        except (PermissionError, OSError):
+            # Graceful fallback: global install failed (sandbox / no home dir access)
+            pass
+
+    return ["/reduce", "/reducetoken"]
+
+
+def _write_claude_commands(cmd_dir: Path) -> None:
     cmd_dir.mkdir(parents=True, exist_ok=True)
+
+    # Remove old caveman.md if present
     old_caveman = cmd_dir / "caveman.md"
     if old_caveman.exists():
         try:
@@ -60,7 +83,7 @@ def _install_claude_commands(root: Path) -> list[str]:
 description: /reduce - Run ReduceToken context optimizer before broad code changes
 ---
 Execute `/reduce` workflow:
-Run `token-reduce / --assistant claude` to generate blast-radius context.
+Run `token-reduce use --caveman full --copy --print` to generate blast-radius context.
 Prioritize only the impacted files and apply ReduceToken direct rules (zero conversational filler, direct diffs).
 """.strip() + "\n",
         encoding="utf-8",
@@ -79,7 +102,6 @@ Execute `/reducetoken` mode:
         encoding="utf-8",
     )
 
-    return ["/reduce", "/reducetoken"]
 
 
 def _install_cursor_rules(root: Path) -> list[str]:
