@@ -57,8 +57,10 @@ class TokenReduceTests(unittest.TestCase):
 
     def test_hook_script_has_python_fallback(self) -> None:
         script = _hook_script("head")
-        self.assertIn("token-reduce sync", script)
-        self.assertIn("python3 -m token_reduce sync", script)
+        # --project-root must come BEFORE the subcommand (global argparse flag)
+        self.assertIn("token-reduce --project-root", script)
+        self.assertIn("sync --git-head", script)
+        self.assertIn("python3 -m token_reduce --project-root", script)
         self.assertIn("--git-head", script)
 
     def test_install_git_hooks_in_repo(self) -> None:

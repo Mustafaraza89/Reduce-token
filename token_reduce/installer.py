@@ -209,9 +209,9 @@ def _hook_script(mode: str) -> str:
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 if [ -n "$REPO_ROOT" ]; then
   if command -v token-reduce >/dev/null 2>&1; then
-    token-reduce sync --project-root "$REPO_ROOT" {sync_flag} >/dev/null 2>&1
+    token-reduce --project-root "$REPO_ROOT" sync {sync_flag} >/dev/null 2>&1
   elif command -v python3 >/dev/null 2>&1; then
-    python3 -m token_reduce sync --project-root "$REPO_ROOT" {sync_flag} >/dev/null 2>&1
+    python3 -m token_reduce --project-root "$REPO_ROOT" sync {sync_flag} >/dev/null 2>&1
   fi
 fi
 """

@@ -91,12 +91,22 @@ def _load_cfg(root: Path) -> AppConfig:
 
 
 def _intercept_slash_commands(argv: list[str]) -> list[str]:
-    """Intercept slash command aliases like '/', '/reduce', '/reducetoken' and map to 'use' flow."""
-    if argv and argv[0] in ("/", "/reduce", "/reducetoken", "/caveman", "/opt", "/raw"):
-        slash_cmd = argv[0]
-        remaining = argv[1:]
-        mode_lvl = "raw" if slash_cmd in ("/caveman", "/raw") else "full"
-        return ["use", "--caveman", mode_lvl, "--copy", "--print"] + remaining
+    """Intercept slash command aliases like '/', '/reduce', '/reducetoken' and map to 'use' flow.
+
+    Also handles edge cases:
+    - Shell expanding '/' to the root directory path on some systems
+    - Windows path separators
+    - Bare 'r' or 'rt' as shorthand aliases
+    """
+    if not argv:
+        return argv
+    first = argv[0]
+    # Normalize: treat bare '/', root-dir path variants, and known slash aliases
+    _slash_aliases = {"/", "/reduce", "/reducetoken", "/caveman", "/opt", "/raw", "r", "rt"}
+    _raw_aliases = {"/caveman", "/raw"}
+    if first in _slash_aliases:
+        mode_lvl = "raw" if first in _raw_aliases else "full"
+        return ["use", "--caveman", mode_lvl, "--copy", "--print"] + argv[1:]
     return argv
 
 
@@ -157,23 +167,35 @@ def main(argv: list[str] | None = None) -> int:
         if args.json:
             print(json.dumps(payload, indent=2))
         else:
-            print(
-                " ".join(
-                    [
-                        "setup_complete",
-                        f"tracked={build_summary['tracked']}",
-                        f"processed={build_summary['processed']}",
-                        f"watcher_started={install_result.watcher_started}",
-                    ]
-                )
-            )
+            import platform
+            print()
+            print("=" * 60)
+            print("  ⚡ ReduceToken Setup Complete!")
+            print("=" * 60)
+            print(f"  Files indexed : {build_summary['tracked']}")
+            print(f"  Processed     : {build_summary['processed']}")
             if install_result.configured_tools:
-                print(f"configured_tools={','.join(install_result.configured_tools)}")
+                print(f"  Integrations  : {', '.join(install_result.configured_tools)}")
             if install_result.hooks_installed:
-                print(f"hooks_installed={','.join(install_result.hooks_installed)}")
+                print(f"  Git hooks     : {', '.join(install_result.hooks_installed)}")
+            print()
+            print("  Next steps:")
+            print("    1. Run inside any project:  token-reduce /")
+            print("    2. Paste the clipboard output into Claude, Gemini, or Cursor.")
+            if platform.system() == "Windows":
+                import sysconfig
+                scripts_dir = sysconfig.get_path("scripts")
+                print()
+                print("  Windows PATH note:")
+                print("    If 'token-reduce' is not found, add this to your PATH:")
+                print(f"    {scripts_dir}")
+                print("    Then restart your terminal / PowerShell.")
+            print("=" * 60)
+            print()
             for note in install_result.notes:
                 print(f"note: {note}")
         return 0
+
 
     if args.command == "install":
         result = install_integrations(cfg, start_watcher=not args.no_watch)

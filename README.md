@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests: 16 Passing](https://img.shields.io/badge/tests-16%20passing-brightgreen.svg)]()
 
-**ReduceToken** dramatically reduces the tokens consumed by AI coding assistants. Works with **Claude Code, Cursor, Gemini, GitHub Copilot, VS Code, and any terminal** via a simple `/` slash command.
+**ReduceToken** dramatically reduces the tokens consumed by AI coding assistants. Works with **Claude Code, Cursor, Gemini, GitHub Copilot, VS Code, and any terminal** via a simple slash command.
 
 - **Input Token Reduction: 80% – 95%** — via AST Knowledge Graph & Blast Radius Analysis
 - **Output Token Reduction: 50% – 75%** — via ReduceToken Direct Engine (silences AI monologue & filler)
@@ -15,13 +15,13 @@
 
 ## ⚡ Install in One Command
 
-No shell scripts. No manual steps. Just run this:
+No shell scripts. No manual steps. Just run:
 
 ```bash
 pip install git+https://github.com/Mustafaraza89/Reduce-token.git
 ```
 
-Then set up editor integrations (Claude, Cursor, Gemini, VS Code, Copilot):
+Then run setup inside your project folder:
 
 ```bash
 token-reduce setup
@@ -29,25 +29,25 @@ token-reduce setup
 
 **Done.** You can now use `token-reduce /` in any project.
 
+> **Windows users:** If `token-reduce` is not found after install, see the [Windows section](#windows) below.
+
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (3 Steps)
 
 ```bash
-# 1. Install
+# Step 1: Install
 pip install git+https://github.com/Mustafaraza89/Reduce-token.git
 
-# 2. Go to any project folder
+# Step 2: Go to your project and set up
 cd your-project
+token-reduce setup
 
-# 3. Build the AST graph (first time only per project)
-token-reduce build
-
-# 4. Run ReduceToken — copies optimized prompt to clipboard
+# Step 3: Run ReduceToken — builds context and copies to clipboard
 token-reduce /
 ```
 
-> **Tip:** Paste the clipboard output directly into Claude, Cursor, Gemini, or ChatGPT.
+Paste the clipboard output directly into Claude, Cursor, Gemini, or ChatGPT.
 
 ---
 
@@ -58,7 +58,7 @@ When you use AI for coding, two problems waste your tokens:
 ### Problem 1 — Input Token Bloat
 The AI reads your entire repo or 10–15 large files:
 - Wastes **10,000–50,000+ input tokens** per prompt
-- Fills the context window — model gets confused → hallucinations
+- Fills the context window → model gets confused → hallucinations
 
 ### Problem 2 — Output Token Waste (AI Monologue)
 Models like Gemini Thinking, Claude 3.7, and OpenAI o1 generate long filler before answering:
@@ -82,84 +82,98 @@ Models like Gemini Thinking, Claude 3.7, and OpenAI o1 generate long filler befo
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Engine 1** builds a static AST graph of your codebase in SQLite. On each run, it computes the "blast radius" — only the files and symbols actually impacted by your change — and sends only those to the AI.
-
-**Engine 2** injects an override directive into the prompt that forces the model to skip monologues and deliver code directly.
-
 ---
 
 ## 🛠️ Installation — All Options
 
-### Option 1 — pip (Recommended, no shell script needed)
+### macOS / Linux
 
 ```bash
+# Recommended — pip install (no shell scripts needed):
 pip install git+https://github.com/Mustafaraza89/Reduce-token.git
 token-reduce setup
-```
 
-### Option 2 — pip with virtual environment (isolated install)
-
-```bash
+# Or with a virtual environment (isolated, recommended for projects):
 python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install git+https://github.com/Mustafaraza89/Reduce-token.git
 token-reduce setup
-```
 
-### Option 3 — Clone + install locally
-
-```bash
+# Or clone and install locally:
 git clone https://github.com/Mustafaraza89/Reduce-token.git
 cd Reduce-token
 pip install -e .
 token-reduce setup
 ```
 
-### Option 4 — 1-Click shell installer (after cloning)
+---
 
-```bash
-git clone https://github.com/Mustafaraza89/Reduce-token.git
-cd Reduce-token
-chmod +x install.sh && ./install.sh
+### Windows
+
+**Step 1:** Open PowerShell or Command Prompt.
+
+**Step 2:** Install:
+
+```powershell
+pip install git+https://github.com/Mustafaraza89/Reduce-token.git
 ```
 
-> **Requirements:** Python 3.9+ and Git. No other dependencies.
+**Step 3:** If `token-reduce` is not found, add Python Scripts to PATH:
+
+```powershell
+# Find your Scripts directory:
+python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+
+# Example output: C:\Users\YourName\AppData\Local\Programs\Python\Python312\Scripts
+```
+
+Add that path to your System PATH:
+1. Search "Environment Variables" in Start Menu
+2. Click "Edit the system environment variables"
+3. Click "Environment Variables" → select "Path" → "Edit" → "New"
+4. Paste the Scripts path → OK → restart PowerShell
+
+**Step 4:** Run setup in your project:
+
+```powershell
+cd your-project
+token-reduce setup
+```
+
+**Step 5:** Use it:
+
+```powershell
+token-reduce /
+```
+
+> **Tip for Windows:** Use `token-reduce use --print` if the clipboard copy doesn't work automatically.
 
 ---
 
 ## 🕹️ How to Use
 
-### Terminal (Universal)
+### Main Command
 
 ```bash
-# Analyze + override AI thinking + copy to clipboard:
+# Builds blast radius context + injects Direct Engine override + copies to clipboard:
 token-reduce /
 
-# With a query:
-token-reduce / --query "fix the authentication bug"
+# Equivalent full form:
+token-reduce use --caveman full --copy --print
+
+# With a specific query:
+token-reduce use --query "fix the auth bug" --copy --print
 ```
-
-### Optional Shell Aliases
-
-Add to `~/.zshrc` or `~/.bashrc`:
-
-```bash
-alias tr='token-reduce'
-```
-
-Then: `tr /` — shortest possible command.
-
----
 
 ### Editor Integrations
 
-Run `token-reduce setup` to install all of these automatically:
+Run `token-reduce setup` once in your project to install all of these automatically:
 
 | Editor | How It Works |
 |---|---|
-| **Claude Code** | `/reduce` and `/reducetoken` slash commands |
+| **Claude Code** | `/reduce` and `/reducetoken` slash commands in `.claude/commands/` |
 | **Cursor AI** | `.cursor/rules/reduce-token.mdc` auto-applied |
-| **Gemini / Antigravity** | `GEMINI.md` workspace rule |
+| **Gemini / Antigravity** | `GEMINI.md` workspace rule auto-loaded |
 | **VS Code** | Command Palette → Run Task → "ReduceToken: Direct Context" |
 | **GitHub Copilot** | `.github/copilot-instructions.md` auto-read by Copilot |
 
@@ -169,29 +183,29 @@ Run `token-reduce setup` to install all of these automatically:
 
 | Mode | Output Savings | Behavior |
 |---|---|---|
-| `mild` | ~40% | Concise senior-engineer style, no pleasantries |
-| `full` *(default)* | ~65% | Telegraphic — direct code & diffs, monologue silenced |
+| `mild` | ~40% | Concise, code-first, no pleasantries |
+| `full` *(default)* | ~65% | Direct code & diffs, monologue silenced |
 | `raw` | ~75% | Pure code/diff only, zero English prose |
 | `off` | 0% | Normal AI output |
 
 ```bash
-token-reduce /                           # full mode (default)
-token-reduce / --caveman raw             # raw mode, max savings
-token-reduce / --max-tokens 2000         # strict token budget
+token-reduce /                                    # full mode (default)
+token-reduce use --caveman raw --copy --print     # raw mode, max savings
+token-reduce use --max-tokens 2000 --copy --print # strict token budget
 ```
 
 ---
 
 ## 📊 Live Token Savings Report
 
-Every prompt shows real-time savings at the top:
+Every run shows real-time savings in the terminal and at the top of the prompt:
 
 ```
-# ReduceToken Context Prompt (gemini)
-
-> ⚡ ReduceToken Optimization Engine:
-> - Input Tokens: ~1,240 tokens (saved 89.2% vs ~11,480 full candidate tokens)
-> - Output Mode: REDUCETOKEN DIRECT (estimated ~65% output tokens saved)
+mode=ReduceToken(AST+DirectEngine) assistant=generic
+changed=src/auth.py,src/utils.py
+tokens_input=~1,240  baseline=~11,480  saved=89.2%
+reducetoken_mode=DIRECT (est_output_saved=~65% + thinking_overridden)
+clipboard=copied ReduceToken prompt to system clipboard!
 ```
 
 ---
@@ -200,12 +214,12 @@ Every prompt shows real-time savings at the top:
 
 | Command | Description |
 |---|---|
-| `token-reduce /` | Universal slash command — builds context + copies to clipboard |
-| `token-reduce setup` | Install editor integrations (Claude, Cursor, Gemini, VS Code, Copilot) |
+| `token-reduce /` | Main command — blast radius + Direct Engine prompt, copied to clipboard |
+| `token-reduce setup` | One-time setup: build graph + install editor integrations + git hooks |
+| `token-reduce use` | Same as `/` with full flag control (`--caveman`, `--max-tokens`, `--copy`, `--print`) |
 | `token-reduce build` | Scan codebase and build/update AST graph index |
-| `token-reduce use` | Full options: `--assistant`, `--max-tokens`, `--copy`, `--print` |
-| `token-reduce sync` | Incrementally sync changed files only |
-| `token-reduce blast` | Compute raw blast radius for specific files |
+| `token-reduce sync` | Incrementally sync only changed files |
+| `token-reduce blast` | Show raw blast radius for specific files |
 | `token-reduce context` | Generate context pack as JSON or Markdown |
 | `token-reduce status` | Show index stats — files, symbols, call edges, DB size |
 | `token-reduce clean` | Clean graph DB and cache |
@@ -233,15 +247,15 @@ All 16 tests pass in under 0.1 seconds.
 
 ```
 Reduce-token/
-├── install.sh                      # Optional 1-click shell installer
+├── install.sh                      # Optional shell installer (clone-and-run alternative)
 ├── GEMINI.md                       # Gemini / Antigravity workspace rule
 ├── pyproject.toml                  # pip package config
 ├── token_reduce/
-│   ├── cli.py                      # CLI entry point
+│   ├── cli.py                      # CLI entry point (token-reduce command)
 │   ├── context_pack.py             # Blast radius → context builder
-│   ├── caveman.py                  # ReduceToken Direct Engine
+│   ├── caveman.py                  # ReduceToken Direct Engine (output override)
 │   ├── slash_commands.py           # Editor integration installer
-│   └── ...                        # Parsers, graph engine, DB layer
+│   └── ...                        # Language parsers, graph engine, DB layer
 ├── .claude/commands/               # Claude Code slash commands
 ├── .cursor/rules/                  # Cursor AI rule
 ├── .github/copilot-instructions.md # Copilot instructions
